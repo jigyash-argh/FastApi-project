@@ -7,7 +7,6 @@ import Footer from '../components/Footer';
 const ContactPage = () => {
     return (
     <div className="bg-[#FFF8F0]">
-      <Navbar />
       <main className="container mx-auto px-6 py-24 md:py-32">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
