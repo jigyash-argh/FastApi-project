@@ -1,45 +1,126 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import Navbar from '../components/Navbar';
+import { Mail, Lock, User, LogIn } from 'lucide-react';
+
+// A simple inline SVG for the Google icon, consistent with the login page
+const GoogleIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-1.5c-.83 0-1.5.67-1.5 1.5V12h3l-.5 3h-2.5v6.8c4.56-.93 8-4.96 8-9.8z"/>
+    <path d="M12 22s-8-4-8-10c0-5.52 4.48-10 10-10s10 4.48 10 10c0 6-8 10-8 10z"/>
+    <g transform="translate(4,4)">
+      <path d="M11.5,8.5H15.5V12.5H11.5z" fill="#4285F4"/>
+      <path d="M8.5,11.5H12.5V15.5H8.5z" fill="#34A853"/>
+      <path d="M4.5,8.5H8.5V12.5H4.5z" fill="#FBBC05"/>
+      <path d="M8.5,4.5H12.5V8.5H8.5z" fill="#EA4335"/>
+    </g>
+  </svg>
+);
 
 const SignupPage = () => {
+
+  const pageVariants = {
+    hidden: { opacity: 0, y: 50 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        type: "spring",
+        stiffness: 100,
+        damping: 20,
+        duration: 0.8,
+        staggerChildren: 0.15, // Slightly adjusted for more fields
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+  };
+
   return (
-    <div className="bg-[#FFF8F0] min-h-screen">
-     
-      <div className="flex items-center justify-center py-24 px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-xl"
-        >
-          <h2 className="text-3xl font-bold text-center text-gray-900">Create an Account</h2>
-          <form className="space-y-6">
-            <div>
-              <label htmlFor="name" className="text-sm font-medium text-gray-700">Name</label>
-              <input type="text" id="name" className="mt-1 block w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg focus:ring-orange-500 focus:border-orange-500" />
-            </div>
-            <div>
-              <label htmlFor="email" className="text-sm font-medium text-gray-700">Email address</label>
-              <input type="email" id="email" className="mt-1 block w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg focus:ring-orange-500 focus:border-orange-500" />
-            </div>
-            <div>
-              <label htmlFor="password"className="text-sm font-medium text-gray-700">Password</label>
-              <input type="password" id="password" className="mt-1 block w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg focus:ring-orange-500 focus:border-orange-500" />
-            </div>
-            <button type="submit" className="w-full py-3 px-4 font-bold text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-all">
+    // Main container to fill the screen below the navbar
+    <div className="h-[calc(100vh-80px)] w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-amber-50 p-4">
+      <motion.div
+        variants={pageVariants}
+        initial="hidden"
+        animate="visible"
+        className="w-full max-w-md p-8 sm:p-10 space-y-6 bg-white rounded-2xl shadow-2xl border border-slate-200/50"
+      >
+        <motion.div variants={itemVariants} className="text-center">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">Create Your Account</h2>
+          <p className="mt-2 text-slate-500">Join Fridge-to-Feast and start cooking!</p>
+        </motion.div>
+        
+        <form className="space-y-6">
+          <motion.div variants={itemVariants} className="relative">
+            <label htmlFor="name" className="sr-only">Full Name</label>
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <input 
+              type="text" 
+              id="name" 
+              placeholder="Full Name"
+              className="pl-12 pr-4 py-3 block w-full bg-slate-100/80 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition duration-300" 
+            />
+          </motion.div>
+
+          <motion.div variants={itemVariants} className="relative">
+            <label htmlFor="email" className="sr-only">Email address</label>
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <input 
+              type="email" 
+              id="email" 
+              placeholder="Email address"
+              className="pl-12 pr-4 py-3 block w-full bg-slate-100/80 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition duration-300" 
+            />
+          </motion.div>
+          
+          <motion.div variants={itemVariants} className="relative">
+            <label htmlFor="password"className="sr-only">Password</label>
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <input 
+              type="password" 
+              id="password" 
+              placeholder="Password"
+              className="pl-12 pr-4 py-3 block w-full bg-slate-100/80 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition duration-300" 
+            />
+          </motion.div>
+          
+          <motion.div variants={itemVariants}>
+            <button 
+              type="submit" 
+              className="w-full py-3 px-4 font-bold text-white bg-gradient-to-r from-amber-500 to-red-500 rounded-lg hover:shadow-xl hover:shadow-red-500/30 transform hover:scale-105 transition-all duration-300 shadow-lg flex items-center justify-center gap-2"
+            >
+              <LogIn size={20}/>
               Sign Up
             </button>
-            <p className="text-center text-sm text-gray-600">
-              Already have an account?{' '}
-              <Link to="/login" className="font-medium text-orange-500 hover:underline">
-                Log in
-              </Link>
-            </p>
-          </form>
+          </motion.div>
+        </form>
+
+        <motion.div variants={itemVariants} className="relative flex items-center">
+          <div className="flex-grow border-t border-slate-200"></div>
+          <span className="flex-shrink mx-4 text-slate-400 text-sm">OR</span>
+          <div className="flex-grow border-t border-slate-200"></div>
         </motion.div>
-      </div>
+
+        <motion.div variants={itemVariants}>
+            <button
+                type="button"
+                className="w-full py-3 px-4 font-semibold text-slate-700 bg-white border-2 border-slate-200 rounded-lg hover:bg-slate-100/80 transition-all duration-300 flex items-center justify-center gap-3"
+            >
+                <GoogleIcon />
+                Continue with Google
+            </button>
+        </motion.div>
+        
+        <motion.p variants={itemVariants} className="text-center text-sm text-slate-600">
+          Already have an account?{' '}
+          <Link to="/login" className="font-semibold text-amber-600 hover:underline hover:text-red-500 transition-colors">
+            Log in
+          </Link>
+        </motion.p>
+      </motion.div>
     </div>
   );
 };
