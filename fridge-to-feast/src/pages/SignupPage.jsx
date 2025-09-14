@@ -6,7 +6,7 @@ import Navbar from '../components/Navbar';
 const SignupPage = () => {
   return (
     <div className="bg-[#FFF8F0] min-h-screen">
-      <Navbar />
+     
       <div className="flex items-center justify-center py-24 px-6">
         <motion.div
           initial={{ opacity: 0, y: 50 }}

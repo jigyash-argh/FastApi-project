@@ -8,10 +8,13 @@ import AboutPage from './pages/AboutPage';
 import ContactPage from './pages/ContactPage';
 import QuickAdd from './pages/QuickAdd';
 import AuthLayout from './layouts/AuthLayout';
+import Navbar from './components/Navbar';
 
 const App = () => {
   return (
+    
     <Router>
+      <Navbar/>
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />

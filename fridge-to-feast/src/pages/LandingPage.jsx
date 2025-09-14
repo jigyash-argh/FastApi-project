@@ -27,7 +27,6 @@ const LandingPage = () => {
 
   return (
     <>
-      <Navbar />
       <div className="bg-[#FFF8F0] flex flex-col items-center justify-center">
         <main className="overflow-hidden w-full">
           {/* Increased vertical padding for more space */}
