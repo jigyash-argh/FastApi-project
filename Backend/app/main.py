@@ -1,7 +1,7 @@
 # main.py
 from fastapi import FastAPI
 from typing import Optional
-
+from . import auth
 app = FastAPI()
 
 @app.get("/")
