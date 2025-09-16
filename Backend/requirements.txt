@@ -1,5 +1,7 @@
 fastapi
 uvicorn[standard]
-python-dotenv
-fastapi-cors
-google-generativeai
+motor
+passlib[bcrypt]
+python-jose[cryptography]
+pydantic
+pydantic-settings
