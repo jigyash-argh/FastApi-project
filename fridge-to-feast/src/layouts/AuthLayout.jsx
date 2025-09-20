@@ -1,22 +1,45 @@
-import React from 'react';
-import { Link, NavLink, Navigate, Outlet } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LogOut, PlusSquare, MessageSquare, ChefHat, FlashlightOff } from 'lucide-react';
-
-// --- Mock Authentication Hook ---
-// In a real app, this would involve context or a state management library.
-const useAuth = () => {
-
-  const user = { loggedIn: true, name: 'Jigyash Shukla', avatar: 'https://placehold.co/100x100/F97316/FFF8F0?text=JS' };
-  return user;
-};
+import { LogOut, PlusSquare, MessageSquare, ChefHat } from 'lucide-react';
+import axios from 'axios';
 
 const AuthLayout = () => {
-  const { loggedIn, name, avatar } = useAuth();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
-  if (!loggedIn) {
-    return <Navigate to="/login" />;
-  }
+  useEffect(() => {
+    const fetchUser = async () => {
+      const token = localStorage.getItem('userToken');
+      if (!token) {
+        setLoading(false);
+        return; // No token, user will be redirected
+      }
+
+      try {
+        const response = await axios.get('http://127.0.0.1:8000/users/me', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setUser(response.data);
+      } catch (error) {
+        console.error("Failed to fetch user:", error);
+        // If token is invalid, clear it and redirect
+        localStorage.removeItem('userToken');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('userToken');
+    navigate('/login');
+  };
 
   // --- Mock Chat History Data ---
   const chatHistory = [
@@ -49,20 +72,28 @@ const AuthLayout = () => {
     visible: { x: 0, opacity: 1, transition: { duration: 0.3 } },
   };
 
+  if (loading) {
+    return <div>Loading...</div>; // Or a spinner component
+  }
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
   return (
-    <div className="absolute left-0 bottom-0 right-0 top-0 flex bg-slate-50">
+    <div className="absolute left-0 bottom-0 right-0 top-0 flex bg-slate-50 dark:bg-gray-800">
       {/* --- Animated Sidebar --- */}
       <motion.aside
         variants={sidebarVariants}
         initial="hidden"
         animate="visible"
-        className="w-72 flex-shrink-0 bg-white border-r border-slate-200/80 flex flex-col shadow-lg"
+        className="w-72 flex-shrink-0 bg-white dark:bg-gray-900 border-r border-slate-200/80 dark:border-gray-700 flex flex-col shadow-lg"
       >
         {/* Logo */}
-        <motion.div variants={itemVariants} className="h-20 flex items-center justify-center border-b border-slate-200/80">
+        <motion.div variants={itemVariants} className="h-20 flex items-center justify-center border-b border-slate-200/80 dark:border-gray-700">
           <Link to="/" className="flex items-center gap-2 group">
             <ChefHat className="h-8 w-8 text-amber-500 transition-transform duration-500 ease-out group-hover:rotate-[360deg]" />
-            <h1 className="text-2xl font-bold font-display tracking-wide text-slate-900 group-hover:text-amber-600 transition-colors">
+            <h1 className="text-2xl font-bold font-display tracking-wide text-slate-900 dark:text-white group-hover:text-amber-600 transition-colors">
               Fridge-to-Feast
             </h1>
           </Link>
@@ -80,7 +111,7 @@ const AuthLayout = () => {
             </Link>
           </motion.div>
 
-          <motion.h3 variants={itemVariants} className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">
+          <motion.h3 variants={itemVariants} className="text-sm font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-2">
             History
           </motion.h3>
           <nav className="flex flex-col gap-1">
@@ -89,10 +120,10 @@ const AuthLayout = () => {
                 <NavLink
                   to={`/chat/${index}`} // Example dynamic route
                   className={({ isActive }) =>
-                    `flex items-center gap-3 p-2.5 rounded-md text-slate-600 transition-all duration-200 ${
+                    `flex items-center gap-3 p-2.5 rounded-md text-slate-600 dark:text-gray-300 transition-all duration-200 ${
                       isActive 
-                        ? 'bg-amber-100/80 text-amber-700 font-semibold' 
-                        : 'hover:bg-amber-100/50 hover:text-amber-600'
+                        ? 'bg-amber-100/80 text-amber-700 font-semibold dark:bg-gray-700 dark:text-amber-400' 
+                        : 'hover:bg-amber-100/50 hover:text-amber-600 dark:hover:bg-gray-700/50 dark:hover:text-amber-400'
                     }`
                   }
                 >
@@ -105,17 +136,17 @@ const AuthLayout = () => {
         </div>
 
         {/* User Profile Section */}
-        <motion.div variants={itemVariants} className="p-4 border-t border-slate-200/80">
+        <motion.div variants={itemVariants} className="p-4 border-t border-slate-200/80 dark:border-gray-700">
           <div className="flex items-center gap-3">
-            <img src={avatar} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-amber-200" />
+            <img src={`https://placehold.co/100x100/F97316/FFF8F0?text=${user.username.charAt(0).toUpperCase()}`} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-amber-200" />
             <div className="flex-grow">
-              <p className="font-semibold text-slate-800 text-sm">{name}</p>
-              <p className="text-xs text-slate-500">Welcome Back!</p>
+              <p className="font-semibold text-slate-800 dark:text-white text-sm">{user.username}</p>
             </div>
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              className="text-slate-500 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-100/50"
+              onClick={handleLogout}
+              className="text-slate-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-100/50 dark:hover:bg-gray-700"
               aria-label="Log Out"
             >
               <LogOut size={20} />
