@@ -6,8 +6,8 @@ import { LogOut, PlusSquare, MessageSquare, ChefHat, FlashlightOff } from 'lucid
 // --- Mock Authentication Hook ---
 // In a real app, this would involve context or a state management library.
 const useAuth = () => {
-  // You can toggle this to test the redirect functionality
-  const user = { loggedIn: false, name: 'Jigyash Shukla', avatar: 'https://placehold.co/100x100/F97316/FFF8F0?text=JS' };
+
+  const user = { loggedIn: true, name: 'Jigyash Shukla', avatar: 'https://placehold.co/100x100/F97316/FFF8F0?text=JS' };
   return user;
 };
 
@@ -50,7 +50,7 @@ const AuthLayout = () => {
   };
 
   return (
-    <div className="absolute top-20 left-0 bottom-0 right-0 flex bg-slate-50">
+    <div className="absolute left-0 bottom-0 right-0 top-0 flex bg-slate-50">
       {/* --- Animated Sidebar --- */}
       <motion.aside
         variants={sidebarVariants}
@@ -133,4 +133,3 @@ const AuthLayout = () => {
 };
 
 export default AuthLayout;
-

@@ -1,7 +1,8 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom'; // 1. Import useNavigate
 import { motion } from 'framer-motion';
 import { Mail, Lock, User, LogIn } from 'lucide-react';
+import axios from 'axios';
 
 // A simple inline SVG for the Google icon, consistent with the login page
 const GoogleIcon = () => (
@@ -18,6 +19,14 @@ const GoogleIcon = () => (
 );
 
 const SignupPage = () => {
+  // --- STATE MANAGEMENT ---
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState(""); // Corrected state setter name
+  const [email, setEmail] = useState(""); // Corrected state variable name
+  const [error, setError] = useState(''); // 2. Add error state
+  const [loading, setLoading] = useState(false); // 3. Add loading state
+  const [success, setSuccess] = useState(false); // 4. Add success state
+  const navigate = useNavigate(); // 5. Initialize navigate
 
   const pageVariants = {
     hidden: { opacity: 0, y: 50 },
@@ -39,6 +48,39 @@ const SignupPage = () => {
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
   };
 
+  // --- HANDLER FOR FORM SUBMISSION ---
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess(false);
+    setLoading(true);
+
+    try {
+      // The /register endpoint expects a JSON payload
+      const response = await axios.post("http://127.0.0.1:8000/register", {
+        username: username,
+        email: email,
+        password: password,
+      });
+
+      // On success, show a message and redirect
+      setSuccess(true);
+      setTimeout(() => {
+        navigate('/login'); // Redirect after 2 seconds
+      }, 2000);
+
+    } catch (err) {
+      // Handle registration errors
+      if (err.response && err.response.data) {
+        setError(err.response.data.detail || 'An error occurred during signup.');
+      } else {
+        setError('Could not connect to the server. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     // Main container to fill the screen below the navbar
     <div className="h-[calc(100vh-80px)] w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-amber-50 p-4">
@@ -53,7 +95,19 @@ const SignupPage = () => {
           <p className="mt-2 text-slate-500">Join Fridge-to-Feast and start cooking!</p>
         </motion.div>
         
-        <form className="space-y-6">
+        {/* --- Display API Error/Success Messages --- */}
+        {error && (
+          <motion.div variants={itemVariants} className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-center">
+            {error}
+          </motion.div>
+        )}
+        {success && (
+          <motion.div variants={itemVariants} className="p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg text-center">
+            Registration successful! Redirecting to login...
+          </motion.div>
+        )}
+
+        <form className="space-y-6" onSubmit={handleSubmit}>
           <motion.div variants={itemVariants} className="relative">
             <label htmlFor="name" className="sr-only">Full Name</label>
             <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
@@ -61,7 +115,10 @@ const SignupPage = () => {
               type="text" 
               id="name" 
               placeholder="Full Name"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="pl-12 pr-4 py-3 block w-full bg-slate-100/80 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition duration-300" 
+              required
             />
           </motion.div>
 
@@ -72,7 +129,10 @@ const SignupPage = () => {
               type="email" 
               id="email" 
               placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="pl-12 pr-4 py-3 block w-full bg-slate-100/80 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition duration-300" 
+              required
             />
           </motion.div>
           
@@ -83,17 +143,30 @@ const SignupPage = () => {
               type="password" 
               id="password" 
               placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="pl-12 pr-4 py-3 block w-full bg-slate-100/80 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition duration-300" 
+              required
             />
           </motion.div>
           
           <motion.div variants={itemVariants}>
             <button 
               type="submit" 
-              className="w-full py-3 px-4 font-bold text-white bg-gradient-to-r from-amber-500 to-red-500 rounded-lg hover:shadow-xl hover:shadow-red-500/30 transform hover:scale-105 transition-all duration-300 shadow-lg flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 font-bold text-white bg-gradient-to-r from-amber-500 to-red-500 rounded-lg hover:shadow-xl hover:shadow-red-500/30 transform hover:scale-105 transition-all duration-300 shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading}
             >
-              <LogIn size={20}/>
-              Sign Up
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Signing Up...</span>
+                </>
+              ) : (
+                <>
+                  <LogIn size={20}/>
+                  <span>Sign Up</span>
+                </>
+              )}
             </button>
           </motion.div>
         </form>

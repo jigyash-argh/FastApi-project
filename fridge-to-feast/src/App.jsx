@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -10,11 +10,14 @@ import QuickAdd from './pages/QuickAdd';
 import AuthLayout from './layouts/AuthLayout';
 import Navbar from './components/Navbar';
 
-const App = () => {
+const AppContent = () => {
+  const location = useLocation();
+  // We will show the Navbar on all pages except '/create'
+  const showNavbar = location.pathname !== '/create';
+
   return (
-    
-    <Router>
-      <Navbar/>
+    <>
+      {showNavbar && <Navbar />}
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
@@ -29,6 +32,14 @@ const App = () => {
           <Route path="/create" element={<CreateRecipePage />} />
         </Route>
       </Routes>
+    </>
+  );
+};
+
+const App = () => {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 };

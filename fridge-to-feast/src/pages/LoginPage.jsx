@@ -21,7 +21,7 @@ const GoogleIcon = () => (
 
 const LoginPage = () => {
     // --- STATE MANAGEMENT ---
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -32,19 +32,20 @@ const LoginPage = () => {
         e.preventDefault();
         setError(''); 
         setLoading(true);
+        const formData= new URLSearchParams();
+        formData.append('username',username)
+        formData.append('password',password)
 
         try {
             // Send POST request to the FastAPI '/token' endpoint
-            const response = await axios.post('http://127.0.0.1:8000/token', {
-                email: email,
-                password: password,
+            const response = await axios.post('http://127.0.0.1:8000/token',formData,{headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
             });
             
-            // On success, get the token and store it
             const { access_token } = response.data;
             localStorage.setItem('userToken', access_token);
             
-            // Redirect to a protected route, e.g., the dashboard
             navigate('/create'); 
 
         } catch (err) {
@@ -80,14 +81,14 @@ const LoginPage = () => {
 
                 <form className="space-y-6" onSubmit={handleSubmit}>
                     <motion.div variants={itemVariants} className="relative">
-                        <label htmlFor="email" className="sr-only">Email address</label>
+                        <label htmlFor="username" className="sr-only">Username</label>
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                         <input 
-                            type="email" 
-                            id="email" 
-                            placeholder="Email address"
-                            value={email} // Bind state
-                            onChange={(e) => setEmail(e.target.value)} // Update state
+                            type="username" 
+                            id="username" 
+                            placeholder="Username"
+                            value={username} // Bind state
+                            onChange={(e) => setUsername(e.target.value)} // Update state
                             className="pl-12 pr-4 py-3 block w-full bg-slate-100/80 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition duration-300" 
                             required
                         />
