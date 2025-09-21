@@ -1,11 +1,10 @@
 // -------------------------------------------------------------------------
 // File: src/pages/CreateRecipePage.jsx (Updated)
-// A beautiful, modern chat interface with Light & Dark modes.
+// A beautiful, modern chat interface with Light mode only.
 // -------------------------------------------------------------------------
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, UtensilsCrossed, Clock, Flame, Users, Sun, Moon } from 'lucide-react';
-import { useTheme } from '../contexts/ThemeContext';
+import { Send, UtensilsCrossed, Clock, Flame, Users } from 'lucide-react';
 
 // --- ICONS ---
 const GiKnifeForkCreate = (props) => (
@@ -30,31 +29,8 @@ const LoadingIndicator = () => (
     </motion.div>
 );
 
-const ThemeToggle = ({ theme, toggleTheme }) => {
-    return (
-        <button
-            onClick={toggleTheme}
-            className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500"
-            aria-label="Toggle theme"
-        >
-            <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                    key={theme}
-                    initial={{ y: -20, opacity: 0, rotate: -30 }}
-                    animate={{ y: 0, opacity: 1, rotate: 0 }}
-                    exit={{ y: 20, opacity: 0, rotate: 30 }}
-                    transition={{ duration: 0.2 }}
-                >
-                    {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-                </motion.div>
-            </AnimatePresence>
-        </button>
-    );
-};
-
 // --- MAIN PAGE COMPONENT ---
 const CreateRecipePage = () => {
-  const { theme, toggleTheme } = useTheme();
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
@@ -96,25 +72,24 @@ const CreateRecipePage = () => {
   };
 
   return (
-    <div className="h-full w-full bg-white dark:bg-gradient-to-br dark:from-[#171133] dark:to-[#0C061F] transition-colors duration-300 font-sans">
+    <div className="h-full w-full bg-white font-sans">
       <div className="max-w-4xl mx-auto h-full flex flex-col">
 
         {/* Header */}
-        <header className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-white/10 flex-shrink-0">
+        <header className="flex justify-between items-center p-4 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center text-white flex-shrink-0 shadow-md">
                   <GiKnifeForkCreate size={20} />
                 </div>
                 <div>
-                    <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100 font-display">AI Recipe Creator</h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Your personal kitchen assistant</p>
+                    <h1 className="text-xl font-bold text-gray-800 font-display">AI Recipe Creator</h1>
+                    <p className="text-sm text-gray-500">Your personal kitchen assistant</p>
                 </div>
             </div>
-            <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
         </header>
 
         {/* Chat Area */}
-        <main className="flex-grow overflow-y-auto p-6 space-y-8">
+        <main className="flex-grow overflow-y-auto p-6 space-y-8 scrollbar-hide">
           <AnimatePresence>
             {messages.map((msg, index) => (
               <motion.div
@@ -134,26 +109,29 @@ const CreateRecipePage = () => {
                 <div className={`max-w-lg p-4 rounded-2xl ${
                     msg.sender === 'user'
                       ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-br-none shadow-lg'
-                      : 'bg-gray-100 dark:bg-[#2F264D]/50 dark:backdrop-blur-sm text-gray-700 dark:text-gray-200 rounded-bl-none border border-gray-200 dark:border-white/10 shadow-md'
+                      : 'bg-orange-50 text-gray-700 rounded-bl-none border border-orange-100 shadow-md'
                   }`}
+                  style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}
                 >
                   {msg.isRecipe ? (
                     <div className="space-y-4">
                         <div className="flex items-center gap-3">
-                            <UtensilsCrossed className="h-6 w-6 text-orange-500 dark:text-orange-400" />
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white font-display">{msg.recipe.title}</h3>
+                            <UtensilsCrossed className="h-6 w-6 text-orange-500" />
+                            <h3 className="text-xl font-bold text-gray-900 font-display">{msg.recipe.title}</h3>
                         </div>
-                        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-600 dark:text-gray-400">
-                            <span className="flex items-center gap-2"><Clock size={16} className="text-orange-500 dark:text-orange-400"/> <strong className="font-semibold text-gray-800 dark:text-gray-200">Prep:</strong> {msg.recipe.prepTime}</span>
-                            <span className="flex items-center gap-2"><Flame size={16} className="text-orange-500 dark:text-orange-400"/> <strong className="font-semibold text-gray-800 dark:text-gray-200">Cook:</strong> {msg.recipe.cookTime}</span>
-                            <span className="flex items-center gap-2"><Users size={16} className="text-orange-500 dark:text-orange-400"/> <strong className="font-semibold text-gray-800 dark:text-gray-200">Servings:</strong> {msg.recipe.servings}</span>
+                        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-600">
+                            <span className="flex items-center gap-2"><Clock size={16} className="text-orange-500"/> <strong className="font-semibold text-gray-800">Prep:</strong> {msg.recipe.prepTime}</span>
+                            <span className="flex items-center gap-2"><Flame size={16} className="text-orange-500"/> <strong className="font-semibold text-gray-800">Cook:</strong> {msg.recipe.cookTime}</span>
+                            <span className="flex items-center gap-2"><Users size={16} className="text-orange-500"/> <strong className="font-semibold text-gray-800">Servings:</strong> {msg.recipe.servings}</span>
                         </div>
-                        <hr className="border-gray-200 dark:border-white/10" />
-                        <ol className="list-decimal list-inside space-y-3 marker:text-orange-500 dark:marker:text-orange-400 marker:font-semibold">
-                            {msg.recipe.instructions.map((step, i) => <li key={i}>{step}</li>)}
+                        <hr className="border-orange-100" />
+                        <ol className="list-decimal list-inside space-y-3 marker:text-orange-500 marker:font-semibold">
+                            {msg.recipe.instructions.map((step, i) => (
+                              <li key={i} className="break-words">{step}</li>
+                            ))}
                         </ol>
                     </div>
-                  ) : <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p> }
+                  ) : <p className="whitespace-pre-wrap leading-relaxed break-words">{msg.text}</p> }
                 </div>
               </motion.div>
             ))}
@@ -163,7 +141,7 @@ const CreateRecipePage = () => {
                 <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center text-white flex-shrink-0 shadow-md">
                     <GiKnifeForkCreate size={18} />
                 </div>
-                <div className="p-4 bg-gray-100 dark:bg-[#2F264D]/50 rounded-2xl rounded-bl-none border border-gray-200 dark:border-white/10 shadow-md h-[44px]">
+                <div className="p-4 bg-orange-50 rounded-2xl rounded-bl-none border border-orange-100 shadow-md h-[44px]">
                     <LoadingIndicator />
                 </div>
             </motion.div>
@@ -172,16 +150,16 @@ const CreateRecipePage = () => {
         </main>
 
         {/* Input Form */}
-        <footer className="p-4 flex-shrink-0 bg-white/80 dark:bg-[#0C061F]/50 backdrop-blur-sm border-t border-gray-200 dark:border-white/10">
+        <footer className="p-4 flex-shrink-0 bg-white border-t border-gray-200">
           <form onSubmit={handleSendMessage} className="relative">
             <input
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="e.g., chicken, rice, onion..."
-              className="w-full pl-5 pr-14 py-3 rounded-full bg-gray-100 dark:bg-white/5 text-gray-800 dark:text-gray-200
-                         border-2 border-transparent placeholder-gray-400 dark:placeholder-gray-500
-                         focus:outline-none focus:border-orange-500/50 focus:bg-white dark:focus:bg-white/10
+              className="w-full pl-5 pr-14 py-3 rounded-full bg-orange-50 text-gray-800
+                         border-2 border-transparent placeholder-gray-500
+                         focus:outline-none focus:border-orange-500/50 focus:bg-white
                          focus:ring-2 focus:ring-orange-500/30
                          transition-all duration-300"
             />
@@ -191,8 +169,8 @@ const CreateRecipePage = () => {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white
-                         disabled:from-gray-400 disabled:to-gray-500 dark:disabled:from-gray-600 dark:disabled:to-gray-700 disabled:scale-100
-                         transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 dark:focus:ring-offset-slate-900"
+                         disabled:from-gray-400 disabled:to-gray-500 disabled:scale-100
+                         transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
             >
               <Send size={20} />
             </motion.button>

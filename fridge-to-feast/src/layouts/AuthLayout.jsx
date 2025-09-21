@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LogOut, PlusSquare, MessageSquare, ChefHat } from 'lucide-react';
+import { LogOut, PlusSquare, MessageSquare, ChefHat, ChevronsLeft } from 'lucide-react';
 import axios from 'axios';
 
 const AuthLayout = () => {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -52,19 +53,8 @@ const AuthLayout = () => {
 
   // --- Animation Variants for Framer Motion ---
   const sidebarVariants = {
-    hidden: { x: -300, opacity: 0 },
-    visible: {
-      x: 0,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100,
-        damping: 20,
-        duration: 0.5,
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
-    },
+    collapsed: { width: '80px', transition: { duration: 0.3, ease: 'easeInOut' } },
+    expanded: { width: '288px', transition: { duration: 0.3, ease: 'easeInOut' } },
   };
 
   const itemVariants = {
@@ -85,17 +75,34 @@ const AuthLayout = () => {
       {/* --- Animated Sidebar --- */}
       <motion.aside
         variants={sidebarVariants}
-        initial="hidden"
-        animate="visible"
-        className="w-72 flex-shrink-0 bg-white dark:bg-gray-900 border-r border-slate-200/80 dark:border-gray-700 flex flex-col shadow-lg"
+        initial="expanded"
+        animate={isSidebarCollapsed ? 'collapsed' : 'expanded'}
+        className="relative bg-white dark:bg-gray-900 border-r border-slate-200/80 dark:border-gray-700 flex flex-col shadow-lg"
       >
+        {/* Collapse Button */}
+        <motion.button
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="absolute -right-3 top-1/2 z-10 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center text-white"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+        >
+          <motion.div
+            animate={{ rotate: isSidebarCollapsed ? 180 : 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <ChevronsLeft size={16} />
+          </motion.div>
+        </motion.button>
+
         {/* Logo */}
         <motion.div variants={itemVariants} className="h-20 flex items-center justify-center border-b border-slate-200/80 dark:border-gray-700">
           <Link to="/" className="flex items-center gap-2 group">
             <ChefHat className="h-8 w-8 text-amber-500 transition-transform duration-500 ease-out group-hover:rotate-[360deg]" />
-            <h1 className="text-2xl font-bold font-display tracking-wide text-slate-900 dark:text-white group-hover:text-amber-600 transition-colors">
-              Fridge-to-Feast
-            </h1>
+            {!isSidebarCollapsed && (
+              <h1 className="text-2xl font-bold font-display tracking-wide text-slate-900 dark:text-white group-hover:text-amber-600 transition-colors">
+                Fridge-to-Feast
+              </h1>
+            )}
           </Link>
         </motion.div>
         
@@ -107,13 +114,15 @@ const AuthLayout = () => {
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-red-500 text-white font-bold py-3 px-4 rounded-lg hover:shadow-xl hover:shadow-red-500/30 transform hover:scale-105 transition-all mb-8 shadow-lg"
             >
               <PlusSquare size={20} />
-              New Recipe
+              {!isSidebarCollapsed && 'New Recipe'}
             </Link>
           </motion.div>
 
-          <motion.h3 variants={itemVariants} className="text-sm font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-2">
-            History
-          </motion.h3>
+          {!isSidebarCollapsed && (
+            <motion.h3 variants={itemVariants} className="text-sm font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-2">
+              History
+            </motion.h3>
+          )}
           <nav className="flex flex-col gap-1">
             {chatHistory.map((item, index) => (
               <motion.div key={index} variants={itemVariants}>
@@ -128,7 +137,7 @@ const AuthLayout = () => {
                   }
                 >
                   <MessageSquare size={16} className="flex-shrink-0" />
-                  <span className="truncate text-sm font-medium">{item}</span>
+                  {!isSidebarCollapsed && <span className="truncate text-sm font-medium">{item}</span>}
                 </NavLink>
               </motion.div>
             ))}
@@ -139,9 +148,11 @@ const AuthLayout = () => {
         <motion.div variants={itemVariants} className="p-4 border-t border-slate-200/80 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <img src={`https://placehold.co/100x100/F97316/FFF8F0?text=${user.username.charAt(0).toUpperCase()}`} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-amber-200" />
-            <div className="flex-grow">
-              <p className="font-semibold text-slate-800 dark:text-white text-sm">{user.username}</p>
-            </div>
+            {!isSidebarCollapsed && (
+              <div className="flex-grow">
+                <p className="font-semibold text-slate-800 dark:text-white text-sm">{user.username}</p>
+              </div>
+            )}
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
