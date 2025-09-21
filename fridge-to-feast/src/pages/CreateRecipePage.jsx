@@ -94,35 +94,40 @@ const CreateRecipePage = () => {
       }
     }
 
-    setTimeout(async () => {
+    try {
+      const aiResponse = await axios.post('http://127.0.0.1:8000/chat', 
+        { message: inputValue },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
       const aiMessage = {
-        sender: 'ai', isRecipe: true,
-        recipe: {
-          title: 'Spicy Garlic Chicken & Rice', prepTime: '10 mins', cookTime: '20 mins', servings: '1 person',
-          instructions: [
-            'Rinse rice under cold water. Cook according to package directions.',
-            'While rice cooks, dice the chicken breast into bite-sized cubes and mince the garlic.',
-            'Heat a pan over medium-high heat. Add a splash of oil, then sauté the chicken until golden brown.',
-            'Add the minced garlic and your favorite spices. Cook for another minute until fragrant.',
-            'Combine the cooked rice with the chicken. Mix everything together and serve hot!',
-          ],
-        },
+        sender: 'ai',
+        isRecipe: true,
+        recipe: aiResponse.data.recipe,
+        youtube_link: aiResponse.data.youtube_link,
+        image_url: aiResponse.data.image_url
       };
+
       setMessages((prev) => [...prev, aiMessage]);
-      setIsLoading(false);
 
       if (token && chatId) {
-        try {
-          await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, { sender: 'ai', text: JSON.stringify(aiMessage.recipe) }, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-        } catch (error) {
-          console.error("Failed to send AI message:", error);
-        }
+        await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, { sender: 'ai', text: JSON.stringify(aiMessage.recipe) }, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
       }
-    }, 2500);
+    } catch (error) {
+      console.error("Failed to get AI response:", error);
+      const errorMessage = { sender: 'ai', text: "Sorry, I couldn't generate a recipe right now. Please try again later." };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -184,6 +189,8 @@ const CreateRecipePage = () => {
                               <li key={i} className="break-words">{step}</li>
                             ))}
                         </ol>
+                        {msg.image_url && <img src={msg.image_url} alt="Recipe" className="mt-4 rounded-lg" />}
+                        {msg.youtube_link && <a href={msg.youtube_link} target="_blank" rel="noopener noreferrer" className="mt-4 text-orange-500 hover:underline">Watch on YouTube</a>}
                     </div>
                   ) : <p className="whitespace-pre-wrap leading-relaxed break-words">{msg.text}</p> }
                 </div>
