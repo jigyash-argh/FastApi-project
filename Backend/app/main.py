@@ -4,8 +4,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import all our custom modules
-from . import auth, db
-from .models import UserCreate, Token, UserPublic, RecipeRequest, ChatHistoryCreate, ChatHistoryItem, MessageCreate, ChatHistoryDelete
+from . import auth, db, chat
+from .models import UserCreate, Token, UserPublic, RecipeRequest, ChatHistoryCreate, ChatHistoryItem, MessageCreate, ChatHistoryDelete, ChatRequest
 from typing import List
 
 app = FastAPI(title="Food-to-Feast API")
@@ -118,3 +118,12 @@ async def delete_history(delete_request: ChatHistoryDelete, current_user: dict =
     if result.modified_count > 0:
         return {"message": "Chat history deleted successfully"}
     raise HTTPException(status_code=404, detail="No matching chat history found to delete")
+
+@app.post("/chat")
+async def chat_with_ai(request: ChatRequest, current_user: dict = Depends(auth.get_current_user)):
+    """
+    This endpoint takes a user's message and returns an AI-generated response
+    with a recipe, a YouTube link, and an image.
+    """
+    response = chat.get_recipe_and_video(request.message)
+    return response
