@@ -12,8 +12,8 @@ import Navbar from './components/Navbar';
 
 const AppContent = () => {
   const location = useLocation();
-  // We will show the Navbar on all pages except '/create'
-  const showNavbar = location.pathname !== '/create';
+  // We will show the Navbar on all pages except '/chat/*'
+  const showNavbar = !location.pathname.startsWith('/chat');
 
   return (
     <>
@@ -29,7 +29,8 @@ const AppContent = () => {
 
         {/* Protected Route using AuthLayout */}
         <Route element={<AuthLayout />}>
-          <Route path="/create" element={<CreateRecipePage />} />
+          <Route path="/chat" element={<CreateRecipePage />} />
+          <Route path="/chat/:chatId" element={<CreateRecipePage />} />
         </Route>
       </Routes>
     </>

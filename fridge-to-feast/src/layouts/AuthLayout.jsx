@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LogOut, PlusSquare, MessageSquare, ChefHat, ChevronsLeft } from 'lucide-react';
+import { LogOut, PlusSquare, MessageSquare, ChefHat, ChevronsLeft, Trash2, X } from 'lucide-react';
 import axios from 'axios';
 
 const AuthLayout = () => {
@@ -9,6 +9,8 @@ const AuthLayout = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedChats, setSelectedChats] = useState([]);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -42,14 +44,77 @@ const AuthLayout = () => {
     navigate('/login');
   };
 
-  // --- Mock Chat History Data ---
-  const chatHistory = [
-    'Spicy Chicken & Rice Skillet',
-    'Quick Tomato & Basil Pasta',
-    'Cheesy Egg Scramble Delight',
-    'Garlic Butter Shrimp',
-    'Hearty Vegetable Soup',
-  ];
+  const [chatHistory, setChatHistory] = useState([]);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const token = localStorage.getItem('userToken');
+      if (token) {
+        try {
+          const response = await axios.get('http://127.0.0.1:8000/history', {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          setChatHistory(response.data.map(item => item.title));
+        } catch (error) {
+          console.error("Failed to fetch history:", error);
+        }
+      }
+    };
+
+    fetchHistory();
+  }, []);
+
+  const handleNewRecipe = async () => {
+    const chatName = prompt("Please enter a name for your new recipe chat:");
+    if (chatName) {
+      const token = localStorage.getItem('userToken');
+      if (token) {
+        try {
+          await axios.post('http://127.0.0.1:8000/history', { title: chatName }, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          setChatHistory([chatName, ...chatHistory]);
+          navigate('/chat');
+        } catch (error) {
+          console.error("Failed to create history item:", error);
+        }
+      }
+    }
+  };
+
+  const handleSelectToggle = () => {
+    setIsSelectMode(!isSelectMode);
+    setSelectedChats([]);
+  };
+
+  const handleChatSelect = (title) => {
+    setSelectedChats(prev =>
+      prev.includes(title) ? prev.filter(t => t !== title) : [...prev, title]
+    );
+  };
+
+  const handleDeleteSelected = async () => {
+    const token = localStorage.getItem('userToken');
+    if (token && selectedChats.length > 0) {
+      try {
+        await axios.delete('http://127.0.0.1:8000/history', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          data: { titles: selectedChats },
+        });
+        setChatHistory(prev => prev.filter(chat => !selectedChats.includes(chat)));
+        setIsSelectMode(false);
+        setSelectedChats([]);
+      } catch (error) {
+        console.error("Failed to delete chat history:", error);
+      }
+    }
+  };
 
   // --- Animation Variants for Framer Motion ---
   const sidebarVariants = {
@@ -109,29 +174,42 @@ const AuthLayout = () => {
         {/* Main Sidebar Content */}
         <div className="flex-grow p-4 overflow-y-auto custom-scrollbar min-h-0">
           <motion.div variants={itemVariants}>
-            <Link
-              to="/create"
+            <button
+              onClick={handleNewRecipe}
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-red-500 text-white font-bold py-3 px-4 rounded-lg hover:shadow-xl hover:shadow-red-500/30 transform hover:scale-105 transition-all mb-8 shadow-lg"
             >
               <PlusSquare size={20} />
               {!isSidebarCollapsed && 'New Recipe'}
-            </Link>
+            </button>
           </motion.div>
 
           {!isSidebarCollapsed && (
-            <motion.h3 variants={itemVariants} className="text-sm font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-2">
-              History
-            </motion.h3>
+            <motion.div variants={itemVariants} className="flex justify-between items-center mb-3 px-2">
+              <h3 className="text-sm font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
+                History
+              </h3>
+              <button onClick={handleSelectToggle} className="text-sm text-amber-600 hover:text-amber-800 font-semibold">
+                {isSelectMode ? 'Cancel' : 'Select'}
+              </button>
+            </motion.div>
           )}
           <nav className="flex flex-col gap-1">
             {chatHistory.map((item, index) => (
-              <motion.div key={index} variants={itemVariants}>
+              <motion.div key={index} variants={itemVariants} className="flex items-center gap-2">
+                {isSelectMode && !isSidebarCollapsed && (
+                  <input
+                    type="checkbox"
+                    checked={selectedChats.includes(item)}
+                    onChange={() => handleChatSelect(item)}
+                    className="form-checkbox h-4 w-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                  />
+                )}
                 <NavLink
-                  to={`/chat/${index}`} // Example dynamic route
+                  to={`/chat/${encodeURIComponent(item)}`}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 p-2.5 rounded-md text-slate-600 dark:text-gray-300 transition-all duration-200 ${
-                      isActive 
-                        ? 'bg-amber-100/80 text-amber-700 font-semibold dark:bg-gray-700 dark:text-amber-400' 
+                    `flex-grow flex items-center gap-3 p-2.5 rounded-md text-slate-600 dark:text-gray-300 transition-all duration-200 ${
+                      isActive
+                        ? 'bg-amber-100/80 text-amber-700 font-semibold dark:bg-gray-700 dark:text-amber-400'
                         : 'hover:bg-amber-100/50 hover:text-amber-600 dark:hover:bg-gray-700/50 dark:hover:text-amber-400'
                     }`
                   }
@@ -142,6 +220,18 @@ const AuthLayout = () => {
               </motion.div>
             ))}
           </nav>
+          {isSelectMode && !isSidebarCollapsed && (
+            <motion.div variants={itemVariants} className="mt-4">
+              <button
+                onClick={handleDeleteSelected}
+                disabled={selectedChats.length === 0}
+                className="w-full flex items-center justify-center gap-2 bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 disabled:bg-gray-400 transition-all"
+              >
+                <Trash2 size={16} />
+                Delete ({selectedChats.length})
+              </button>
+            </motion.div>
+          )}
         </div>
 
         {/* User Profile Section */}

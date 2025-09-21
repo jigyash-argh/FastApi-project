@@ -5,6 +5,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, UtensilsCrossed, Clock, Flame, Users } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import axios from 'axios';
 
 // --- ICONS ---
 const GiKnifeForkCreate = (props) => (
@@ -31,15 +33,40 @@ const LoadingIndicator = () => (
 
 // --- MAIN PAGE COMPONENT ---
 const CreateRecipePage = () => {
-  const [messages, setMessages] = useState([
-    {
-      sender: 'ai',
-      text: "Welcome! 🍳 What ingredients do you have in your fridge today? List them out and I'll whip up a recipe for you.",
-    },
-  ]);
+  const { chatId } = useParams();
+  const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (chatId) {
+        const token = localStorage.getItem('userToken');
+        if (token) {
+          try {
+            const response = await axios.get(`http://127.0.0.1:8000/history/${chatId}`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            setMessages(response.data.messages);
+          } catch (error) {
+            console.error("Failed to fetch messages:", error);
+          }
+        }
+      } else {
+        setMessages([
+          {
+            sender: 'ai',
+            text: "Welcome! 🍳 What ingredients do you have in your fridge today? List them out and I'll whip up a recipe for you.",
+          },
+        ]);
+      }
+    };
+
+    fetchMessages();
+  }, [chatId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,12 +76,26 @@ const CreateRecipePage = () => {
     e.preventDefault();
     if (!inputValue.trim() || isLoading) return;
 
-    setMessages((prev) => [...prev, { sender: 'user', text: inputValue }]);
+    const userMessage = { sender: 'user', text: inputValue };
+    setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
 
-    setTimeout(() => {
-      setMessages((prev) => [...prev, {
+    const token = localStorage.getItem('userToken');
+    if (token && chatId) {
+      try {
+        await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, userMessage, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to send message:", error);
+      }
+    }
+
+    setTimeout(async () => {
+      const aiMessage = {
         sender: 'ai', isRecipe: true,
         recipe: {
           title: 'Spicy Garlic Chicken & Rice', prepTime: '10 mins', cookTime: '20 mins', servings: '1 person',
@@ -66,8 +107,21 @@ const CreateRecipePage = () => {
             'Combine the cooked rice with the chicken. Mix everything together and serve hot!',
           ],
         },
-      }]);
+      };
+      setMessages((prev) => [...prev, aiMessage]);
       setIsLoading(false);
+
+      if (token && chatId) {
+        try {
+          await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, { sender: 'ai', text: JSON.stringify(aiMessage.recipe) }, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        } catch (error) {
+          console.error("Failed to send AI message:", error);
+        }
+      }
     }, 2500);
   };
 

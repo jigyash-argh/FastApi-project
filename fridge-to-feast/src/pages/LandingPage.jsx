@@ -87,7 +87,7 @@ const LandingPage = () => {
                     transition={{ type: 'spring', stiffness: 400, damping: 17 }}
                   >
                     <Link
-                      to="/create"
+                      to="/chat"
                       className="w-full sm:w-auto flex items-center justify-center gap-3 bg-orange-500 text-white font-bold py-4 px-10 rounded-full transition-all duration-300 text-lg"
                     >
                       Start Cooking Now

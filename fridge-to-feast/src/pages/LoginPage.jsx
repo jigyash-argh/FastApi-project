@@ -46,7 +46,7 @@ const LoginPage = () => {
             const { access_token } = response.data;
             localStorage.setItem('userToken', access_token);
             
-            navigate('/create'); 
+            navigate('/chat'); 
 
         } catch (err) {
             // Handle login errors

@@ -6,7 +6,7 @@ import { ChefHat, Menu, X, LogIn } from "lucide-react";
 // --- Configuration for Navigation Links ---
 const navLinks = [
   { title: "Home", path: "/" },
-  { title: "Create Recipe", path: "/create" },
+  { title: "Create Recipe", path: "/chat" },
   { title: "About", path: "/about" },
 ];
 
