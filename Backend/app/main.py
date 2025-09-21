@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Import all our custom modules
 from . import auth, db
-from .models import UserCreate, Token, UserPublic, RecipeRequest
+from .models import UserCreate, Token, UserPublic, RecipeRequest, ChatHistoryCreate, ChatHistoryItem, MessageCreate, ChatHistoryDelete
+from typing import List
 
 app = FastAPI(title="Food-to-Feast API")
 
@@ -88,3 +89,32 @@ async def generate_recipe(request: RecipeRequest, current_user: dict = Depends(a
         ],
         "serving_suggestion": "Best served with a side of your favorite TV show."
     }
+
+@app.get("/history", response_model=List[ChatHistoryItem])
+async def get_history(current_user: dict = Depends(auth.get_current_user)):
+    history = await db.get_chat_history(current_user["username"])
+    return history
+
+@app.post("/history", response_model=ChatHistoryItem)
+async def create_history(chat_item: ChatHistoryCreate, current_user: dict = Depends(auth.get_current_user)):
+    history_item = await db.create_chat_history(current_user["username"], chat_item.title)
+    return history_item
+
+@app.get("/history/{title}", response_model=ChatHistoryItem)
+async def get_chat_by_title(title: str, current_user: dict = Depends(auth.get_current_user)):
+    chat = await db.get_chat_by_title(current_user["username"], title)
+    if chat:
+        return chat
+    raise HTTPException(status_code=404, detail="Chat not found")
+
+@app.post("/history/{title}/messages", response_model=MessageCreate)
+async def add_message_to_chat(title: str, message: MessageCreate, current_user: dict = Depends(auth.get_current_user)):
+    await db.add_message_to_chat(current_user["username"], title, message.dict())
+    return message
+
+@app.delete("/history")
+async def delete_history(delete_request: ChatHistoryDelete, current_user: dict = Depends(auth.get_current_user)):
+    result = await db.delete_chat_history(current_user["username"], delete_request.titles)
+    if result.modified_count > 0:
+        return {"message": "Chat history deleted successfully"}
+    raise HTTPException(status_code=404, detail="No matching chat history found to delete")

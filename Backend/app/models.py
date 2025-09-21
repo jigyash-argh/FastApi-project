@@ -1,5 +1,6 @@
 # app/models.py
 from pydantic import BaseModel, EmailStr
+from typing import List
 
 # --- User Models ---
 
@@ -33,3 +34,31 @@ class RecipeRequest(BaseModel):
                 "ingredients": "onions, tomatoes, leftover chicken, rice"
             }
         }
+        
+
+#chat response
+class ChatRequest(BaseModel):
+    message:str       
+    
+class ChatResponse(BaseModel):
+    message:str
+
+# --- Chat History Models ---
+
+class Message(BaseModel):
+    sender: str
+    text: str
+
+class ChatHistoryItem(BaseModel):
+    title: str
+    messages: List[Message]
+
+class ChatHistoryCreate(BaseModel):
+    title: str
+
+class MessageCreate(BaseModel):
+    sender: str
+    text: str
+
+class ChatHistoryDelete(BaseModel):
+    titles: List[str]
