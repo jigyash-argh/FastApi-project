@@ -12,7 +12,7 @@ import Navbar from './components/Navbar';
 
 const AppContent = () => {
   const location = useLocation();
-  // We will show the Navbar on all pages except '/chat/*'
+
   const showNavbar = !location.pathname.startsWith('/chat');
 
   return (
