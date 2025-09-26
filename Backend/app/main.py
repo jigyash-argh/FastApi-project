@@ -2,7 +2,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-
+from app.chat import get_recipe_and_video, get_structured_fallback_recipe
 # Import all our custom modules
 from . import auth, db, chat
 from .models import UserCreate, Token, UserPublic, RecipeRequest, ChatHistoryCreate, ChatHistoryItem, MessageCreate, ChatHistoryDelete, ChatRequest
@@ -119,11 +119,44 @@ async def delete_history(delete_request: ChatHistoryDelete, current_user: dict =
         return {"message": "Chat history deleted successfully"}
     raise HTTPException(status_code=404, detail="No matching chat history found to delete")
 
+from fastapi import HTTPException, Depends
+import logging
+from app.config import settings
+
+from .chat import get_recipe_and_video  # Import the function
+
+logger = logging.getLogger(__name__)
+
+from fastapi import HTTPException, Depends
+import logging
+from app.chat import get_recipe_and_video
+
+logger = logging.getLogger(__name__)
 @app.post("/chat")
 async def chat_with_ai(request: ChatRequest, current_user: dict = Depends(auth.get_current_user)):
     """
-    This endpoint takes a user's message and returns an AI-generated response
-    with a recipe, a YouTube link, and an image.
+    Chat endpoint using OpenRouter for recipe generation
     """
-    response = chat.get_recipe_and_video(request.message)
-    return response
+    logger.info(f"💬 Chat request from user {current_user.get('username', 'unknown')}: {request.message}")
+    
+    # Validate input
+    if not request.message or not isinstance(request.message, str) or len(request.message.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    
+    if len(request.message.strip()) > 500:
+        raise HTTPException(status_code=400, detail="Message too long")
+    
+    try:
+        # Get structured recipe from OpenRouter
+        response = get_recipe_and_video(request.message.strip())
+        
+        logger.info("✅ Successfully generated structured recipe response")
+        return response
+        
+    except Exception as e:
+        logger.error(f"❌ Error in chat endpoint: {str(e)}")
+        
+        # Return fallback response
+        from app.chat import get_structured_fallback_recipe
+        fallback_response = get_structured_fallback_recipe(request.message)
+        return fallback_response
