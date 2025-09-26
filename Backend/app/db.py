@@ -13,8 +13,6 @@ database = client.FoodToFeastDB
 user_collection = database.get_collection("users")
 history_collection = database.get_collection("history")
 
-# --- Database Helper Functions ---
-
 # Function to get a user from the database by their username
 async def get_user(username: str) -> dict | None:
     user = await user_collection.find_one({"username": username})
