@@ -4,7 +4,7 @@ from .config import settings  # <-- IMPORT from our new config file
 
 # This is the main connection to your MongoDB database
 # It now uses the DATABASE_URL from the central settings object
-client = motor.motor_asyncio.AsyncIOMotorClient(settings.DATABASE_URL)
+client = motor.motor_asyncio.AsyncIOMotorClient("mongodb+srv://food_app_user:testpassword123@cluster0foodtofeastclus.dnkm0mw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0FoodToFeastCluster")
 
 # We get a specific database from our MongoDB cluster
 database = client.FoodToFeastDB

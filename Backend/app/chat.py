@@ -25,6 +25,17 @@ def clean_json_response(raw_response: str) -> str:
     
     return cleaned.strip()
 
+def get_reliable_image_url(search_term: str) -> str:
+    """Generate more reliable Unsplash URLs with better formatting"""
+    clean_term = re.sub(r'[^\w\s]', '', search_term).strip().replace(' ', '+')
+    return f"https://source.unsplash.com/featured/500x500/?{clean_term},food,recipe"
+
+def get_better_image_search_term(query: str, recipe_title: str) -> str:
+    """Generate more specific and reliable image search terms"""
+    base_term = recipe_title if recipe_title else query
+    clean_term = re.sub(r'\b(recipe|how to make|easy|simple|best|delicious)\b', '', base_term.lower())
+    return f"{clean_term.strip()} food"
+
 def get_recipe_and_video(query: str) -> Dict:
     """
     Use OpenRouter's free tier to get recipe information
@@ -117,8 +128,8 @@ Return ONLY the JSON:"""
                 # Validate required structure
                 required_keys = ["title", "prepTime", "cookTime", "servings", "ingredients", "instructions"]
                 if not all(key in recipe_data for key in required_keys):
-                    print("⚠️ Missing some required keys, using fallback")
-                    return get_structured_fallback_recipe(query)
+                    missing_keys = [key for key in required_keys if key not in recipe_data]
+                    raise ValueError(f"Missing required keys: {missing_keys}")
                 
                 # Process the data with better error handling
                 title = recipe_data.get("title", f"Delicious {query}").strip()
@@ -129,22 +140,20 @@ Return ONLY the JSON:"""
                 # Ensure ingredients and instructions are proper arrays
                 ingredients = recipe_data.get("ingredients", [])
                 if isinstance(ingredients, str):
-                    # Split by newlines or commas and clean up
                     ingredients = [line.strip() for line in ingredients.replace(',', '\n').split('\n') if line.strip()]
                 
                 instructions = recipe_data.get("instructions", [])
                 if isinstance(instructions, str):
-                    # Split by newlines and clean up
                     instructions = [line.strip() for line in instructions.split('\n') if line.strip()]
                 elif isinstance(instructions, list) and instructions:
-                    # Ensure each instruction is properly formatted
                     instructions = [str(step).strip() for step in instructions if step]
                 
+                # Generate better search terms
                 youtube_search = recipe_data.get("youtube_search_term", query).strip()
                 image_search = recipe_data.get("image_search_term", query).strip()
                 
-                # Generate URLs
-                image_url = f"https://source.unsplash.com/500x500/?{image_search.replace(' ', '+')}"
+                # Generate reliable URLs
+                image_url = get_reliable_image_url(image_search)
                 youtube_link = f"https://www.youtube.com/results?search_query={youtube_search.replace(' ', '+')}+recipe"
                 
                 # Structured result for frontend
@@ -164,124 +173,29 @@ Return ONLY the JSON:"""
                 
             except (json.JSONDecodeError, ValueError) as e:
                 print(f"❌ JSON parsing error: {e}")
-                print(f"Falling back to structured recipe for: {query}")
-                return get_structured_fallback_recipe(query)
+                raise Exception(f"Failed to parse recipe data: {str(e)}")
                 
         else:
             error_msg = f"API error: {response.status_code} - {response.text}"
             print(f"❌ {error_msg}")
-            return get_structured_fallback_recipe(query)
+            raise Exception(f"API request failed: {error_msg}")
             
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
-        return get_structured_fallback_recipe(query)
+        raise Exception(f"Recipe generation failed: {str(e)}")
 
+
+# Since your main.py expects this function, but you don't want fallbacks,
+# this function will now just throw an exception instead of providing fallback
 def get_structured_fallback_recipe(query: str) -> Dict:
     """
-    Structured fallback recipe that matches frontend expectations
+    This function is kept for compatibility but now throws an exception
+    since you don't want fallback responses
     """
-    print("🔄 Using structured fallback recipe")
-    
-    # Specific fallback recipes for common queries
-    structured_recipes = {
-        "paneer": {
-            "title": "Garlic Butter Paneer",
-            "prepTime": "15 mins",
-            "cookTime": "20 mins",
-            "servings": "3-4 people",
-            "ingredients": [
-                "250g paneer, cubed",
-                "2 tbsp butter",
-                "4 garlic cloves, minced", 
-                "1 onion, sliced",
-                "1 capsicum, sliced",
-                "1 tsp garam masala",
-                "1/2 tsp turmeric",
-                "1/2 tsp red chili powder",
-                "Salt to taste",
-                "2 tbsp fresh cream",
-                "Fresh coriander for garnish"
-            ],
-            "instructions": [
-                "Heat butter in a pan over medium heat",
-                "Add minced garlic and sauté until golden brown",
-                "Add sliced onions and cook until translucent", 
-                "Add capsicum and cook for 2-3 minutes until slightly tender",
-                "Add paneer cubes and all spices (garam masala, turmeric, chili powder, salt)",
-                "Gently mix everything together without breaking paneer",
-                "Cook for 5-7 minutes until paneer is heated through",
-                "Add fresh cream and mix well",
-                "Garnish with fresh coriander leaves",
-                "Serve hot with roti or naan"
-            ]
-        },
-        "chicken": {
-            "title": "Butter Chicken",
-            "prepTime": "30 mins", 
-            "cookTime": "40 mins",
-            "servings": "4 people",
-            "ingredients": [
-                "500g chicken, cubed",
-                "2 tbsp butter",
-                "1 onion, chopped",
-                "2 tomatoes, pureed",
-                "1 tbsp ginger-garlic paste",
-                "1/2 cup cream",
-                "1 tsp garam masala",
-                "1 tsp kasuri methi",
-                "Salt to taste",
-                "1 tsp sugar",
-                "Fresh coriander for garnish"
-            ],
-            "instructions": [
-                "Marinate chicken with salt and turmeric for 15 minutes",
-                "Heat butter in a pan, sauté onions until golden",
-                "Add ginger-garlic paste and cook for 2 minutes",
-                "Add tomato puree and cook until oil separates",
-                "Add spices and cook for another 2 minutes",
-                "Add chicken and cook for 15-20 minutes until tender",
-                "Add cream and kasuri methi, simmer for 5 minutes",
-                "Garnish with fresh coriander and serve with rice"
-            ]
-        }
-    }
-    
-    query_lower = query.lower()
-    
-    # Try to find matching structured recipe
-    for key, recipe in structured_recipes.items():
-        if key in query_lower:
-            image_url = f"https://source.unsplash.com/500x500/?{key}+food"
-            youtube_link = f"https://www.youtube.com/results?search_query={key}+recipe"
-            return {**recipe, "youtube_link": youtube_link, "image_url": image_url}
-    
-    # Generic structured fallback
-    image_url = f"https://source.unsplash.com/500x500/?{query.replace(' ', '+')}+food"
-    youtube_link = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}+recipe"
-    
-    return {
-        "title": f"Delicious {query.title()}",
-        "prepTime": "15-20 mins",
-        "cookTime": "30-45 mins", 
-        "servings": "2-4 people",
-        "ingredients": [
-            "Fresh ingredients based on your request",
-            "Essential spices and seasonings",
-            "Cooking oil or butter",
-            "Herbs for garnish"
-        ],
-        "instructions": [
-            "Prepare all your ingredients beforehand",
-            "Follow proper cooking techniques for best results",
-            "Season throughout the cooking process",
-            "Taste and adjust flavors before serving",
-            "Garnish beautifully and serve hot"
-        ],
-        "youtube_link": youtube_link,
-        "image_url": image_url
-    }
+    raise Exception("Fallback recipes are disabled. Recipe generation failed for: " + query)
 
-# Add this function that's referenced in main.py
+
+# Keep this function for main.py compatibility
 def get_fallback_recipe(query: str) -> Dict:
-    """Simple fallback function for main.py"""
-    return get_structured_fallback_recipe(query)
+    """Simple fallback function for main.py - now throws exception"""
+    raise Exception("Fallback recipes are disabled")
