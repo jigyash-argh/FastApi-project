@@ -152,30 +152,55 @@ const CreateRecipePage = () => {
   const chatEndRef = useRef(null);
 
   useEffect(() => {
-    const fetchMessages = async () => {
-      if (chatId) {
-        const token = localStorage.getItem('userToken');
-        if (token) {
-          try {
-            const response = await axios.get(`http://127.0.0.1:8000/history/${chatId}`, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            });
-            setMessages(response.data.messages);
-          } catch (error) {
-            console.error("Failed to fetch messages:", error);
-          }
-        }
-      } else {
-        setMessages([
-          {
-            sender: 'ai',
-            text: "Welcome! 🍳 What ingredients do you have in your fridge today? List them out and I'll whip up a recipe for you.",
+const fetchMessages = async () => {
+  if (chatId) {
+    const token = localStorage.getItem('userToken');
+    if (token) {
+      try {
+        const response = await axios.get(`http://127.0.0.1:8000/history/${chatId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
           },
-        ]);
+        });
+        
+        // FIX: Parse messages that are stored as JSON strings
+        const parsedMessages = response.data.messages.map(msg => {
+          if (msg.sender === 'ai') {
+            try {
+              // Try to parse the text as JSON (for recipe objects)
+              const parsedText = JSON.parse(msg.text);
+              // If it's a recipe object, structure it properly
+              if (parsedText && typeof parsedText === 'object') {
+                return {
+                  ...msg,
+                  isRecipe: true,
+                  recipe: parsedText,
+                  youtube_link: parsedText.youtube_link,
+                  image_url: parsedText.image_url
+                };
+              }
+            } catch (e) {
+              // If parsing fails, it's a regular text message
+              return msg;
+            }
+          }
+          return msg;
+        });
+        
+        setMessages(parsedMessages);
+      } catch (error) {
+        console.error("Failed to fetch messages:", error);
       }
-    };
+    }
+  } else {
+    setMessages([
+      {
+        sender: 'ai',
+        text: "Welcome! 🍳 What ingredients do you have in your fridge today? List them out and I'll whip up a recipe for you.",
+      },
+    ]);
+  }
+};
 
     fetchMessages();
   }, [chatId]);
@@ -201,17 +226,24 @@ const CreateRecipePage = () => {
     const token = localStorage.getItem('userToken');
     
     // Save user message to history if chatId exists
-    if (token && chatId) {
-      try {
-        await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, userMessage, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      } catch (error) {
-        console.error("Failed to save user message:", error);
-      }
-    }
+// Save AI message to history if chatId exists
+if (token && chatId) {
+  try {
+    // ✅ FIXED: Save with proper structure
+    await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, { 
+      sender: 'ai', 
+      text: JSON.stringify(aiResponse.data), // Keep as JSON string for storage
+      isRecipe: true, // Add this flag
+      timestamp: new Date().toISOString()
+    }, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to save AI message:", error);
+  }
+}
 
     try {
       const aiResponse = await axios.post('http://127.0.0.1:8000/chat', 

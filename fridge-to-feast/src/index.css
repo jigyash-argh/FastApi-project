@@ -7,3 +7,18 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+.scroll-stack-card {
+  background: white;
+  border-radius: 40px;
+  box-shadow: 0 0 30px rgba(0,0,0,0.1);
+}
+
+/* Hide scrollbars but keep functionality */
+.scroll-stack::-webkit-scrollbar {
+  display: none;
+}
+
+.scroll-stack {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

@@ -9,6 +9,28 @@ const availableIngredients = [
   'Broccoli', 'Carrot', 'Potatoes', 'Pasta', 'Milk', 'Butter', 'Salt', 'Pepper'
 ];
 
+// Inspiration cards data
+const inspirationCards = [
+  {
+    id: 1,
+    image: "https://images.unsplash.com/photo-1605478534768-8eb69e3e6a1f?w=400&h=300&fit=crop",
+    title: "🍛 Leftover Rice → Fried Rice",
+    description: "Transform yesterday's plain rice into colorful fried rice with veggies, soy sauce, and a dash of chili. Quick, tasty, and zero waste!"
+  },
+  {
+    id: 2,
+    image: "https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=300&fit=crop",
+    title: "🍞 Stale Bread → Garlic Croutons",
+    description: "Cut stale bread into cubes, toss with garlic butter & herbs, then bake. Perfect crunchy topping for soups and salads."
+  },
+  {
+    id: 3,
+    image: "https://images.unsplash.com/photo-1627308595229-7830a5c91f9f?w=400&h=300&fit=crop",
+    title: "🥔 Boiled Potatoes → Masala Cutlets",
+    description: "Mash boiled potatoes with spices, coat in breadcrumbs, and shallow fry. A crispy snack that gives boring leftovers new life."
+  }
+];
+
 const QuickAdd = () => {
   // --- STATE: The component's memory ---
   const [selectedIngredients, setSelectedIngredients] = useState(['Chicken', 'Rice', 'Cheese']);
@@ -95,6 +117,45 @@ const QuickAdd = () => {
     }
     
     return JSON.parse(result.candidates[0].content.parts[0].text);
+  };
+
+  // Card container animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 }, 
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.2
+      }
+    }
+  };
+
+  // Card item animation variants
+  const cardVariants = {
+    hidden: { 
+      opacity: 0, 
+      y: 30,
+      scale: 0.9
+    },
+    visible: {
+      opacity: 1,
+      y: 0,   
+      scale: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100,
+        damping: 15
+      }
+    },
+    hover: {
+      y: -8,
+      scale: 1.02,
+      transition: {
+        type: "spring",
+        stiffness: 400,
+        damping: 17
+      }
+    }
   };
 
   // --- JSX: What is shown on the screen ---
@@ -196,11 +257,45 @@ const QuickAdd = () => {
 
             {!isLoading && !error && !recipe && (
               <motion.div key="initial" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}
-                className="flex flex-col items-center justify-center text-slate-500 bg-slate-100/70 p-8 rounded-xl border border-slate-200 shadow-sm h-full"
+                className="flex flex-col items-center justify-center text-slate-500 bg-slate-100/70 p-8 rounded-xl border border-slate-200 shadow-sm"
               >
                 <ChefHat className="h-16 w-16 text-amber-400 mb-4" />
                 <p className="text-xl font-semibold text-slate-800">Ready to cook something new?</p>
-                <p className="mt-2 text-md text-slate-600 max-w-sm">Pick your ingredients above and let our AI create a unique recipe for you!</p>
+                <p className="mt-2 text-md text-slate-600 max-w-sm mb-8">Pick your ingredients above and let our AI create a unique recipe for you!</p>
+                
+                {/* Inspiration Cards with Enhanced Animations */}
+                <motion.div 
+                  className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl"
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {inspirationCards.map((card) => (
+                    <motion.div
+                      key={card.id}
+                      className="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-100 cursor-pointer"
+                      variants={cardVariants}
+                      whileHover="hover"
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <motion.div 
+                        className="h-48 overflow-hidden"
+                        whileHover={{ scale: 1.05 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <img
+                          src={card.image}
+                          alt={card.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </motion.div>
+                      <div className="p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-2">{card.title}</h3>
+                        <p className="text-slate-600 text-sm leading-relaxed">{card.description}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -211,4 +306,3 @@ const QuickAdd = () => {
 };
 
 export default QuickAdd;
-
