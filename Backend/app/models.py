@@ -1,32 +1,34 @@
 # app/models.py
-from pydantic import BaseModel, EmailStr
-from typing import List
+from pydantic import BaseModel, EmailStr, Field, validator
+from typing import List, Optional
+from datetime import datetime
 
 # --- User Models ---
 
-# This model defines the data needed to CREATE a new user.
 class UserCreate(BaseModel):
-    username: str
+    username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=6)
 
-# This model is used to safely return user data to the client (without the password).
 class UserPublic(BaseModel):
     username: str
     email: EmailStr
 
+class UserInDB(BaseModel):
+    username: str
+    email: EmailStr
+    hashed_pass: str
+
 # --- Token Model ---
 
-# This model defines the shape of the access token response.
 class Token(BaseModel):
     access_token: str
     token_type: str
 
 # --- Recipe Generator Model ---
 
-# This model defines the input for your AI agent.
 class RecipeRequest(BaseModel):
-    ingredients: str # A string of comma-separated ingredients
+    ingredients: str  # A string of comma-separated ingredients
     
     class Config:
         json_schema_extra = {
@@ -34,14 +36,14 @@ class RecipeRequest(BaseModel):
                 "ingredients": "onions, tomatoes, leftover chicken, rice"
             }
         }
-        
 
-#chat response
+# --- Chat Models ---
+
 class ChatRequest(BaseModel):
-    message:str       
-    
+    message: str
+
 class ChatResponse(BaseModel):
-    message:str
+    message: str
 
 # --- Chat History Models ---
 
