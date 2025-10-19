@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { LogOut, PlusSquare, MessageSquare, ChefHat, ChevronsLeft, Trash2, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { LogOut, PlusSquare, MessageSquare, ChefHat, ChevronsLeft, Trash2, X, Save, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 
 const AuthLayout = () => {
@@ -11,13 +11,16 @@ const AuthLayout = () => {
   const navigate = useNavigate();
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedChats, setSelectedChats] = useState([]);
+  const [isCreatingNewRecipe, setIsCreatingNewRecipe] = useState(false);
+  const [newRecipeName, setNewRecipeName] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
       const token = localStorage.getItem('userToken');
       if (!token) {
         setLoading(false);
-        return; // No token, user will be redirected
+        return;
       }
 
       try {
@@ -29,7 +32,6 @@ const AuthLayout = () => {
         setUser(response.data);
       } catch (error) {
         console.error("Failed to fetch user:", error);
-        // If token is invalid, clear it and redirect
         localStorage.removeItem('userToken');
       } finally {
         setLoading(false);
@@ -66,23 +68,54 @@ const AuthLayout = () => {
     fetchHistory();
   }, []);
 
-  const handleNewRecipe = async () => {
-    const chatName = prompt("Please enter a name for your new recipe chat:");
-    if (chatName) {
-      const token = localStorage.getItem('userToken');
-      if (token) {
-        try {
-          await axios.post('http://127.0.0.1:8000/history', { title: chatName }, {
+  const handleNewRecipeClick = () => {
+    setIsCreatingNewRecipe(true);
+    setNewRecipeName('');
+  };
+
+  const handleCancelNewRecipe = () => {
+    setIsCreatingNewRecipe(false);
+    setNewRecipeName('');
+  };
+
+  const handleCreateRecipe = async () => {
+    if (!newRecipeName.trim()) {
+      alert('Please enter a recipe name');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const token = localStorage.getItem('userToken');
+    
+    if (token) {
+      try {
+        await axios.post('http://127.0.0.1:8000/history', 
+          { title: newRecipeName.trim() }, 
+          {
             headers: {
               Authorization: `Bearer ${token}`,
             },
-          });
-          setChatHistory([chatName, ...chatHistory]);
-          navigate('/chat');
-        } catch (error) {
-          console.error("Failed to create history item:", error);
-        }
+          }
+        );
+        
+        setChatHistory([newRecipeName.trim(), ...chatHistory]);
+        setIsCreatingNewRecipe(false);
+        setNewRecipeName('');
+        navigate('/chat');
+      } catch (error) {
+        console.error("Failed to create history item:", error);
+        alert('Failed to create recipe. Please try again.');
+      } finally {
+        setIsSubmitting(false);
       }
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleCreateRecipe();
+    } else if (e.key === 'Escape') {
+      handleCancelNewRecipe();
     }
   };
 
@@ -127,16 +160,20 @@ const AuthLayout = () => {
     visible: { x: 0, opacity: 1, transition: { duration: 0.3 } },
   };
 
-if (loading) {
-  return (
-    <div className="flex items-center justify-center h-screen space-x-2">
-      <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce"></div>
-      <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-      <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.6s]"></div>
-    </div>
-  );
-}
+  const inputVariants = {
+    hidden: { height: 0, opacity: 0 },
+    visible: { height: 'auto', opacity: 1, transition: { duration: 0.3 } }
+  };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen space-x-2">
+        <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce"></div>
+        <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+        <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.6s]"></div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/login" />;
@@ -182,24 +219,89 @@ if (loading) {
         <div className="flex-grow p-4 overflow-y-auto custom-scrollbar min-h-0">
           <motion.div variants={itemVariants}>
             <button
-              onClick={handleNewRecipe}
-              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-red-500 text-white font-bold py-3 px-4 rounded-lg hover:shadow-xl hover:shadow-red-500/30 transform hover:scale-105 transition-all mb-8 shadow-lg"
+              onClick={handleNewRecipeClick}
+              disabled={isCreatingNewRecipe}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-red-500 text-white font-bold py-3 px-4 rounded-lg hover:shadow-xl hover:shadow-red-500/30 transform hover:scale-105 transition-all mb-8 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               <PlusSquare size={20} />
               {!isSidebarCollapsed && 'New Recipe'}
             </button>
           </motion.div>
 
+          {/* New Recipe Input Form */}
+          <AnimatePresence>
+            {isCreatingNewRecipe && !isSidebarCollapsed && (
+              <motion.div
+                variants={inputVariants}
+                initial="hidden"
+                animate="visible"
+                exit="hidden"
+                className="mb-6 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    New Recipe Name
+                  </h4>
+                  <button
+                    onClick={handleCancelNewRecipe}
+                    className="text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                
+                <input
+                  type="text"
+                  value={newRecipeName}
+                  onChange={(e) => setNewRecipeName(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  placeholder="Enter recipe name..."
+                  className="w-full px-3 py-2 border border-amber-300 dark:border-amber-600 rounded-md bg-white dark:bg-gray-800 text-slate-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                  autoFocus
+                  disabled={isSubmitting}
+                />
+                
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={handleCreateRecipe}
+                    disabled={isSubmitting || !newRecipeName.trim()}
+                    className="flex-1 flex items-center justify-center gap-2 bg-amber-500 text-white py-2 px-3 rounded-md hover:bg-amber-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                  >
+                    {isSubmitting ? (
+                      <RotateCcw size={16} className="animate-spin" />
+                    ) : (
+                      <Save size={16} />
+                    )}
+                    {isSubmitting ? 'Creating...' : 'Create'}
+                  </button>
+                  
+                  <button
+                    onClick={handleCancelNewRecipe}
+                    disabled={isSubmitting}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors text-sm font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {!isSidebarCollapsed && (
             <motion.div variants={itemVariants} className="flex justify-between items-center mb-3 px-2">
               <h3 className="text-sm font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
                 History
               </h3>
-              <button onClick={handleSelectToggle} className="text-sm text-amber-600 hover:text-amber-800 font-semibold">
+              <button 
+                onClick={handleSelectToggle} 
+                className="text-sm text-amber-600 hover:text-amber-800 font-semibold"
+                disabled={isCreatingNewRecipe}
+              >
                 {isSelectMode ? 'Cancel' : 'Select'}
               </button>
             </motion.div>
           )}
+          
           <nav className="flex flex-col gap-1">
             {chatHistory.map((item, index) => (
               <motion.div key={index} variants={itemVariants} className="flex items-center gap-2">
@@ -227,6 +329,7 @@ if (loading) {
               </motion.div>
             ))}
           </nav>
+          
           {isSelectMode && !isSidebarCollapsed && (
             <motion.div variants={itemVariants} className="mt-4">
               <button
@@ -244,10 +347,15 @@ if (loading) {
         {/* User Profile Section */}
         <motion.div variants={itemVariants} className="p-4 border-t border-slate-200/80 dark:border-gray-700">
           <div className="flex items-center gap-3">
-            <img src={`https://placehold.co/100x100/F97316/FFF8F0?text=${user.username.charAt(0).toUpperCase()}`} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-amber-200" />
+            <img 
+              src={`https://placehold.co/100x100/F97316/FFF8F0?text=${user.username.charAt(0).toUpperCase()}`} 
+              alt="User Avatar" 
+              className="w-10 h-10 rounded-full border-2 border-amber-200" 
+            />
             {!isSidebarCollapsed && (
               <div className="flex-grow">
                 <p className="font-semibold text-slate-800 dark:text-white text-sm">{user.username}</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400">{user.email}</p>
               </div>
             )}
             <motion.button
