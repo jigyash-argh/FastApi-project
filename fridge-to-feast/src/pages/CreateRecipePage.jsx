@@ -4,7 +4,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, UtensilsCrossed, Clock, Flame, Users, ChefHat, Star, Heart, Share2, Bookmark, Timer, Zap } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { useParams,Link } from 'react-router-dom';
 import axios from 'axios';
 
 // --- ICONS ---
@@ -491,6 +491,11 @@ const CreateRecipePage = () => {
           >
             Ready to Cook!
           </motion.div>
+      <Link to="/dashboard">
+      <div className="inline-block px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-semibold text-lg shadow-lg hover:scale-105 transition-transform hover:from-purple-600 hover:to-indigo-700">
+        Go to Dashboard
+      </div>
+    </Link>
         </motion.header>
 
         {/* Enhanced Chat Area - REMOVED SCROLLBAR */}

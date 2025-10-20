@@ -9,11 +9,12 @@ import ContactPage from './pages/ContactPage';
 import QuickAdd from './pages/QuickAdd';
 import AuthLayout from './layouts/AuthLayout';
 import Navbar from './components/Navbar';
+import Dashboard from './pages/Dashboard';
 
 const AppContent = () => {
   const location = useLocation();
 
-  const showNavbar = !location.pathname.startsWith('/chat');
+  const showNavbar = !location.pathname.startsWith('/chat')&&location.pathname!=='/dashboard';
 
   return (
     <>
@@ -30,6 +31,7 @@ const AppContent = () => {
         {/* Protected Route using AuthLayout */}
         <Route element={<AuthLayout />}>
           <Route path="/chat" element={<CreateRecipePage />} />
+          <Route path="/dashboard" element={<Dashboard/>} />
           <Route path="/chat/:chatId" element={<CreateRecipePage />} />
         </Route>
       </Routes>
