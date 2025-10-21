@@ -10,11 +10,12 @@ import QuickAdd from './pages/QuickAdd';
 import AuthLayout from './layouts/AuthLayout';
 import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
+import FavoritesPage from './pages/FavoritesPage';
 
 const AppContent = () => {
   const location = useLocation();
 
-  const showNavbar = !location.pathname.startsWith('/chat')&&location.pathname!=='/dashboard';
+  const showNavbar = !location.pathname.startsWith('/chat')&&location.pathname!=='/dashboard'&&location.pathname!=="/favorites";
 
   return (
     <>
@@ -33,6 +34,8 @@ const AppContent = () => {
           <Route path="/chat" element={<CreateRecipePage />} />
           <Route path="/dashboard" element={<Dashboard/>} />
           <Route path="/chat/:chatId" element={<CreateRecipePage />} />
+          <Route path="/favorites" element={<FavoritesPage/>
+} />
         </Route>
       </Routes>
     </>

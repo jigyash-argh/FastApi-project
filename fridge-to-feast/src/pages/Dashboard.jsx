@@ -5,166 +5,409 @@ import {
   FireIcon,     // Calories
   BoltIcon,     // Protein
   CakeIcon,     // Carbs
-  BeakerIcon    // Fats
+  BeakerIcon,   // Fats
+  UserCircleIcon,
+  ExclamationTriangleIcon,
+  CalendarIcon,
+  ChartBarIcon,
+  BookOpenIcon
 } from '@heroicons/react/24/solid';
 
 const Dashboard = () => {
-  const weeklyTotals = {
-    calories: 2200,
-    protein: 130,
-    carbs: 280,
-    fats: 70,
-  };
   const [userDetails, setUserDetails] = useState(null);
-useEffect(()=>{
-const get_userData=async ()=>{
-    const token=localStorage.getItem('userToken')
-    if(!token){
-      return;
-    }
-  try{
-    const response= await axios.get('http://127.0.0.1:8000/users/me',{
-      headers: {
-        Authorization :`Bearer ${token}`,
-      },
-    });
-    setUserDetails(response.data);
-  } catch (error) {
-        console.error("Failed to fetch user:", error);
-      }
-};
-get_userData();
-},[])
   const [showAbout, setShowAbout] = useState(false);
-  
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // Smart weekly totals that adapt to user's calorie goal
+  const getWeeklyTotals = () => {
+    const baseCalories = userDetails?.goal_calories || 2200;
+    return {
+      calories: baseCalories,
+      protein: Math.round((baseCalories * 0.3) / 4), // 30% of calories from protein
+      carbs: Math.round((baseCalories * 0.5) / 4),   // 50% from carbs
+      fats: Math.round((baseCalories * 0.2) / 9),    // 20% from fats
+    };
+  };
+
+  const weeklyTotals = getWeeklyTotals();
+
+  useEffect(() => {
+    const get_userData = async () => {
+      const token = localStorage.getItem('userToken');
+      if (!token) {
+        setError("Please log in to view dashboard");
+        return;
+      }
+      try {
+        setIsLoading(true);
+        const response = await axios.get('http://127.0.0.1:8000/users/me', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setUserDetails(response.data);
+      } catch (error) {
+        console.error("Failed to fetch user:", error);
+        setError("Failed to load user data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    get_userData();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setUserDetails(prev => ({ ...prev, [name]: value }));
+    setUserDetails(prev => ({ 
+      ...prev, 
+      [name]: name === 'age' || name === 'goal_calories' ? Number(value) : value 
+    }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    alert('User details updated!');
-    setShowAbout(false);
+    setError("");
+    setSuccess("");
+    
+    const token = localStorage.getItem("userToken");
+    if (!token) {
+      setError("Authentication required");
+      return;
+    }
+
+    // Validation
+    if (!userDetails.email.includes('@')) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    if (userDetails.age < 1 || userDetails.age > 120) {
+      setError("Please enter a valid age");
+      return;
+    }
+
+    if (userDetails.goal_calories < 500) {
+      setError("Calorie goal should be at least 500");
+      return;
+    }
+
+    if (password && password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      const payload = {
+        username: userDetails.username,
+        email: userDetails.email,
+        age: userDetails.age,
+        goal_calories: userDetails.goal_calories,
+      };
+
+      // Only include password if it's not empty and not the placeholder
+      if (password && password.trim() && password !== "*********") {
+        payload.password = password;
+      }
+
+      const response = await axios.put(
+        'http://127.0.0.1:8000/users/me', 
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": 'application/json',
+          },
+        }
+      );
+
+      setUserDetails(response.data);
+      setPassword(""); // Reset password field
+      setSuccess("Profile updated successfully!");
+      setTimeout(() => {
+        setShowAbout(false);
+        setSuccess("");
+        
+      }, 2000);
+      
+    } catch (error) {
+      console.error("Update failed:", error);
+      setError(error.response?.data?.detail || "Failed to update profile");
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  // Calculate daily progress (mock data - you can replace with real data)
+  const calculateDailyProgress = () => {
+    const goal = userDetails?.goal_calories || 2200;
+    const consumed = 1850; // This would come from your food tracking API
+    const progress = Math.min((consumed / goal) * 100, 100);
+    
+    return {
+      consumed,
+      goal,
+      progress,
+      remaining: Math.max(goal - consumed, 0)
+    };
+  };
+
+  const dailyProgress = calculateDailyProgress();
+
+  // Get calorie recommendation based on age and goal
+  const getCalorieRecommendation = () => {
+    const age = userDetails?.age || 25;
+    const goal = userDetails?.goal_calories || 2200;
+    
+    if (age < 18) return "Consult a doctor for calorie recommendations";
+    if (goal < 1200) return "Very low calorie goal - consider increasing for health";
+    if (goal > 4000) return "High calorie goal - ensure balanced nutrition";
+    
+    return "Your calorie goal looks good! Maintain balanced macros.";
+  };
+
+  if (isLoading && !userDetails) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-900">
+        <div className="text-white text-xl">Loading your dashboard...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className='px-6 py-8 h-full min-h-screen'>
-      {/* Header */}
-      <div className='flex flex-col items-center mt-5'>
-        <h1 className='text-white font-bold text-4xl'>Dashboard</h1>
+    <div className="h-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] bg-gray-900">
+      <div className="min-h-full px-4 sm:px-6 py-6">
+        {/* Header with User Info */}
+        <div className='flex flex-col items-center mt-5'>
+          <div className="flex items-center gap-3 mb-4">
+            <UserCircleIcon className="w-10 h-10 sm:w-12 sm:h-12 text-indigo-400" />
+            <div className="text-center sm:text-left">
+              <h1 className='text-white font-bold text-3xl sm:text-4xl'>Dashboard</h1>
+              <p className="text-gray-400 text-sm">Welcome back, {userDetails?.username || 'User'}!</p>
+            </div>
+          </div>
 
-        <button
-          onClick={() => setShowAbout(prev => !prev)}
-          className="mt-4 px-4 py-2 bg-indigo-600 rounded hover:bg-indigo-700 text-white font-semibold"
-        >
-          {showAbout ? 'Close About Me' : 'About Me'}
-        </button>
-      </div>
+          <button
+            onClick={() => setShowAbout(prev => !prev)}
+            className="mt-4 px-6 py-3 bg-indigo-600 rounded-lg hover:bg-indigo-700 text-white font-semibold transition-colors duration-200 flex items-center gap-2"
+          >
+            <UserCircleIcon className="w-5 h-5" />
+            {showAbout ? 'Close Profile' : 'Edit Profile'}
+          </button>
+        </div>
 
-      {/* About Me Section - Fixed/Overlay */}
-      {showAbout && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="max-w-md w-full p-6 bg-gray-800 rounded shadow-md text-white">
-            <h2 className="text-2xl font-semibold mb-4">User Details</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block mb-1">Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={userDetails.username}
-                  onChange={handleChange}
-                  className="w-full p-2 rounded bg-gray-700 text-white"
-                  required
-                />
+        {/* Main Content Container */}
+        <div className="max-w-7xl mx-auto w-full mt-6">
+          {/* Daily Progress Card */}
+          <div className="bg-gray-800 rounded-xl p-4 sm:p-6 shadow-lg">
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4">Today's Progress</h2>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-green-400">{dailyProgress.consumed}</div>
+                <div className="text-gray-400 text-xs sm:text-sm">Consumed</div>
               </div>
-              <div>
-                <label className="block mb-1">Email</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={userDetails.email}
-                  onChange={handleChange}
-                  className="w-full p-2 rounded bg-gray-700 text-white"
-                  required
-                />
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-blue-400">{dailyProgress.remaining}</div>
+                <div className="text-gray-400 text-xs sm:text-sm">Remaining</div>
               </div>
-              <div>
-                <label className="block mb-1">Age</label>
-                <input
-                  type="number"
-                  name="age"
-                  value={userDetails.age}
-                  onChange={handleChange}
-                  className="w-full p-2 rounded bg-gray-700 text-white"
-                  min="1"
-                  required
-                />
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-indigo-400">{dailyProgress.goal}</div>
+                <div className="text-gray-400 text-xs sm:text-sm">Daily Goal</div>
               </div>
-              <div>
-                <label className="block mb-1">Daily Calorie Goal</label>
-                <input
-                  type="number"
-                  name="goalCalories"
-                  value={userDetails.goal_calories}
-                  onChange={handleChange}
-                  className="w-full p-2 rounded bg-gray-700 text-white"
-                  min="0"
-                  required
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  className="flex-1 py-2 bg-green-600 rounded hover:bg-green-700 font-semibold"
-                >
-                  Update Details
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAbout(false)}
-                  className="flex-1 py-2 bg-gray-600 rounded hover:bg-gray-700 font-semibold"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-3 sm:h-4">
+              <div 
+                className={`h-3 sm:h-4 rounded-full transition-all duration-500 ${
+                  dailyProgress.progress > 90 ? 'bg-red-500' : 
+                  dailyProgress.progress > 75 ? 'bg-yellow-500' : 'bg-green-500'
+                }`}
+                style={{ width: `${dailyProgress.progress}%` }}
+              ></div>
+            </div>
+            <div className="text-center mt-2 text-xs sm:text-sm text-gray-400">
+              {dailyProgress.progress.toFixed(1)}% of daily goal
+            </div>
+          </div>
+
+          {/* Smart Recommendation */}
+          <div className="mt-4 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <ExclamationTriangleIcon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+              <p className="text-white text-xs sm:text-sm font-medium">
+                {getCalorieRecommendation()}
+              </p>
+            </div>
+          </div>
+
+          {/* Nutrient Cards */}
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-6'>
+            <NutrientCard
+              label="Calories"
+              value={weeklyTotals.calories}
+              unit=" kcal"
+              color="bg-gradient-to-r from-red-500 to-pink-500"
+              icon={<FireIcon className="w-6 h-6 sm:w-8 sm:h-8" />}
+              description="Daily target"
+            />
+            <NutrientCard
+              label="Protein"
+              value={weeklyTotals.protein}
+              unit="g"
+              color="bg-gradient-to-r from-green-500 to-emerald-500"
+              icon={<BoltIcon className="w-6 h-6 sm:w-8 sm:h-8" />}
+              description="Muscle building"
+            />
+            <NutrientCard
+              label="Carbs"
+              value={weeklyTotals.carbs}
+              unit="g"
+              color="bg-gradient-to-r from-blue-500 to-cyan-500"
+              icon={<CakeIcon className="w-6 h-6 sm:w-8 sm:h-8" />}
+              description="Energy source"
+            />
+            <NutrientCard
+              label="Fats"
+              value={weeklyTotals.fats}
+              unit="g"
+              color="bg-gradient-to-r from-yellow-500 to-orange-500"
+              icon={<BeakerIcon className="w-6 h-6 sm:w-8 sm:h-8" />}
+              description="Essential nutrients"
+            />
+          </div>
+
+          {/* Quick Stats - Fixed layout */}
+          <div className="mt-6 grid grid-cols-3 gap-3 sm:gap-4 sm:gap-6">
+            <div className="bg-gray-800 rounded-xl p-4 text-center">
+              <CalendarIcon className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400 mx-auto mb-2" />
+              <div className="text-lg sm:text-2xl font-bold text-white">7</div>
+              <div className="text-gray-400 text-xs sm:text-sm">Days Streak</div>
+            </div>
+            <div className="bg-gray-800 rounded-xl p-4 text-center">
+              <ChartBarIcon className="w-6 h-6 sm:w-8 sm:h-8 text-green-400 mx-auto mb-2" />
+              <div className="text-lg sm:text-2xl font-bold text-white">85%</div>
+              <div className="text-gray-400 text-xs sm:text-sm">Goal Completion</div>
+            </div>
+            <div className="bg-gray-800 rounded-xl p-4 text-center">
+              <BookOpenIcon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 mx-auto mb-2" />
+              <div className="text-lg sm:text-2xl font-bold text-white">12</div>
+              <div className="text-gray-400 text-xs sm:text-sm">Recipes Tried</div>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Nutrient Cards */}
-      <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-10'>
-        <NutrientCard
-          label="Calories"
-          value={weeklyTotals.calories}
-          unit=" kcal"
-          color="bg-red-500"
-          icon={<FireIcon className="w-8 h-8" />}
-        />
-        <NutrientCard
-          label="Protein"
-          value={weeklyTotals.protein}
-          unit="g"
-          color="bg-green-500"
-          icon={<BoltIcon className="w-8 h-8" />}
-        />
-        <NutrientCard
-          label="Carbs"
-          value={weeklyTotals.carbs}
-          unit="g"
-          color="bg-blue-500"
-          icon={<CakeIcon className="w-8 h-8" />}
-        />
-        <NutrientCard
-          label="Fats"
-          value={weeklyTotals.fats}
-          unit="g"
-          color="bg-yellow-500"
-          icon={<BeakerIcon className="w-8 h-8" />}
-        />
+        {/* About Me Section - Fixed/Overlay */}
+        {showAbout && userDetails && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="max-w-md w-full max-h-[90vh] overflow-y-auto p-6 bg-gray-800 rounded-xl shadow-2xl text-white">
+              <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+                <UserCircleIcon className="w-6 h-6" />
+                Edit Profile
+              </h2>
+              
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-300 text-sm">
+                  {error}
+                </div>
+              )}
+              
+              {success && (
+                <div className="mb-4 p-3 bg-green-500/20 border border-green-500 rounded-lg text-green-300 text-sm">
+                  {success}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block mb-2 text-sm font-medium">Username</label>
+                  <input
+                    type="text"
+                    name="username"
+                    value={userDetails.username || ''}
+                    onChange={handleChange}
+                    className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block mb-2 text-sm font-medium">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={userDetails.email || ''}
+                    onChange={handleChange}
+                    className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block mb-2 text-sm font-medium">Age</label>
+                  <input
+                    type="number"
+                    name="age"
+                    value={userDetails.age || ''}
+                    onChange={handleChange}
+                    className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+                    min="1"
+                    max="120"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block mb-2 text-sm font-medium">Daily Calorie Goal</label>
+                  <input
+                    type="number"
+                    name="goal_calories"
+                    value={userDetails.goal_calories || ''}
+                    onChange={handleChange}
+                    className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+                    min="500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block mb-2 text-sm font-medium">
+                    New Password (leave empty to keep current)
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter new password to change"
+                    className="w-full p-3 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Minimum 6 characters. Leave blank to keep current password.
+                  </p>
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="flex-1 py-3 bg-green-600 rounded-lg hover:bg-green-700 font-semibold disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors duration-200"
+                  >
+                    {isLoading ? 'Updating...' : 'Update Profile'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAbout(false);
+                      setError("");
+                      setSuccess("");
+                      setPassword("");
+                    }}
+                    className="flex-1 py-3 bg-gray-600 rounded-lg hover:bg-gray-700 font-semibold transition-colors duration-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -180,18 +180,18 @@ const AuthLayout = () => {
   }
 
   return (
-    <div className="absolute left-0 bottom-0 right-0 top-0 flex bg-slate-50 dark:bg-gray-800">
+    <div className="h-screen w-screen flex bg-slate-50 dark:bg-gray-800 overflow-hidden">
       {/* --- Animated Sidebar --- */}
       <motion.aside
         variants={sidebarVariants}
         initial="expanded"
         animate={isSidebarCollapsed ? 'collapsed' : 'expanded'}
-        className="relative bg-white dark:bg-gray-900 border-r border-slate-200/80 dark:border-gray-700 flex flex-col shadow-lg"
+        className="relative bg-white dark:bg-gray-900 border-r border-slate-200/80 dark:border-gray-700 flex flex-col shadow-lg h-full"
       >
         {/* Collapse Button */}
         <motion.button
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute -right-3 top-1/2 z-10 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center text-white"
+          className="absolute -right-3 top-1/2 z-10 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center text-white shadow-lg border-2 border-white"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
         >
@@ -204,7 +204,7 @@ const AuthLayout = () => {
         </motion.button>
 
         {/* Logo */}
-        <motion.div variants={itemVariants} className="h-20 flex items-center justify-center border-b border-slate-200/80 dark:border-gray-700">
+        <motion.div variants={itemVariants} className="h-20 flex items-center justify-center border-b border-slate-200/80 dark:border-gray-700 flex-shrink-0">
           <Link to="/" className="flex items-center gap-2 group">
             <ChefHat className="h-8 w-8 text-amber-500 transition-transform duration-500 ease-out group-hover:rotate-[360deg]" />
             {!isSidebarCollapsed && (
@@ -216,7 +216,7 @@ const AuthLayout = () => {
         </motion.div>
         
         {/* Main Sidebar Content */}
-        <div className="flex-grow p-4 overflow-y-auto custom-scrollbar min-h-0">
+        <div className="flex-grow p-4 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-0">
           <motion.div variants={itemVariants}>
             <button
               onClick={handleNewRecipeClick}
@@ -324,7 +324,11 @@ const AuthLayout = () => {
                   }
                 >
                   <MessageSquare size={16} className="flex-shrink-0" />
-                  {!isSidebarCollapsed && <span className="truncate text-sm font-medium">{item}</span>}
+                  {!isSidebarCollapsed && (
+                    <span className="truncate text-sm font-medium flex-1 min-w-0">
+                      {item}
+                    </span>
+                  )}
                 </NavLink>
               </motion.div>
             ))}
@@ -345,7 +349,7 @@ const AuthLayout = () => {
         </div>
 
         {/* User Profile Section */}
-        <motion.div variants={itemVariants} className="p-4 border-t border-slate-200/80 dark:border-gray-700">
+        <motion.div variants={itemVariants} className="p-4 border-t border-slate-200/80 dark:border-gray-700 flex-shrink-0">
           <div className="flex items-center gap-3">
             <img 
               src={`https://placehold.co/100x100/F97316/FFF8F0?text=${user.username.charAt(0).toUpperCase()}`} 
@@ -353,16 +357,16 @@ const AuthLayout = () => {
               className="w-10 h-10 rounded-full border-2 border-amber-200" 
             />
             {!isSidebarCollapsed && (
-              <div className="flex-grow">
-                <p className="font-semibold text-slate-800 dark:text-white text-sm">{user.username}</p>
-                <p className="text-xs text-slate-500 dark:text-gray-400">{user.email}</p>
+              <div className="flex-grow min-w-0">
+                <p className="font-semibold text-slate-800 dark:text-white text-sm truncate">{user.username}</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400 truncate">{user.email}</p>
               </div>
             )}
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={handleLogout}
-              className="text-slate-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-100/50 dark:hover:bg-gray-700"
+              className="text-slate-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-100/50 dark:hover:bg-gray-700 flex-shrink-0"
               aria-label="Log Out"
             >
               <LogOut size={20} />
@@ -372,7 +376,7 @@ const AuthLayout = () => {
       </motion.aside>
 
       {/* --- Main Content Area --- */}
-      <main className="flex-1">
+      <main className="flex-1 overflow-hidden">
         <Outlet />
       </main>
     </div>
