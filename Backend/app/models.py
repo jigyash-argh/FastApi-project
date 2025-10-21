@@ -14,15 +14,23 @@ class UserCreate(BaseModel):
 class UserPublic(BaseModel):
     username: str
     email: EmailStr
-    age: Optional[int]=None
-    goal_calories:Optional[int]=None
+    age: Optional[int] = None
+    goal_calories: Optional[int] = None
 
 class UserUpdate(BaseModel):
-    username:Optional[str]=None
-    email:Optional[EmailStr]=None
-    age:Optional[int]=None
-    goal_calories:Optional[int]=None
-    password: Optional[str]
+    username: Optional[str] = None
+    email: Optional[str] = None  # Changed from EmailStr to str
+    age: Optional[int] = None
+    goal_calories: Optional[int] = None
+    password: Optional[str] = None
+
+    @validator('email')
+    def validate_email_if_provided(cls, v):
+        if v is not None and v != "":
+            # Basic email validation when email is provided
+            if '@' not in v:
+                raise ValueError('Invalid email format')
+        return v
 
 class UserInDB(BaseModel):
     username: str
