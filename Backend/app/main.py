@@ -11,7 +11,7 @@ from . import auth, db, chat
 from .models import (
     UserCreate, Token, UserPublic, RecipeRequest, 
     ChatHistoryCreate, ChatHistoryItem, MessageCreate, 
-    ChatHistoryDelete, ChatRequest
+    ChatHistoryDelete, ChatRequest,UserUpdate
 )
 
 app = FastAPI(title="Food-to-Feast API")
@@ -61,6 +61,8 @@ async def register_user(user: UserCreate):
     user_data = {
         "username": user.username,
         "email": user.email,
+        "age":25,
+        "goal_calories":2000,
         "hashed_pass": hashed_password,
         "created_at": datetime.utcnow().isoformat()
     }
@@ -95,7 +97,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 @app.get("/users/me", response_model=UserPublic)
 async def read_users_me(current_user: dict = Depends(auth.get_current_user)):
-    return UserPublic(username=current_user["username"], email=current_user["email"])
+    return UserPublic(username=current_user["username"], email=current_user["email"],age=current_user["age"],goal_calories=current_user["goal_calories"])
 
 
 @app.post("/generate-recipe")
@@ -178,3 +180,31 @@ async def chat_with_ai(request: ChatRequest, current_user: dict = Depends(auth.g
         # Return fallback response
         fallback_response = get_structured_fallback_recipe(request.message)
         return fallback_response
+
+@app.put("/users/me")
+async def update_user(user_update:UserUpdate,current_user:dict=Depends(auth.get_current_user)):
+    update_data=user_update.dict(exclude_unset=True)
+    if "username" in update_data:
+        existing_user=await db.user_collection.find_one({"username":update_data["username"]})
+        if existing_user and existing_user["_id"]!=current_user["_id"]:
+                        raise HTTPException(status_code=400, detail="Username already exists")
+
+    if "email" in update_data:
+         existing_email=await db.user_collection.find_one({"email":update_data["email"]})
+         if existing_email and existing_email["_id"]!=current_user["_id"]:
+              raise HTTPException(status_code=400,detail="email already exists")
+    
+    if "password" in update_data:
+         update_data["hashed_pass"]=auth.get_password_hash(update_data.pop("password"))
+        
+    await db.user_collection.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": update_data}
+    )
+    updated_user=await db.user_collection.find_one({"_id":current_user["_id"]})
+
+    return UserPublic(        
+        username=updated_user["username"],
+        email=updated_user["email"],
+        age=updated_user.get("age", 25),
+        goal_calories=updated_user.get("goal_calories", 2000))
