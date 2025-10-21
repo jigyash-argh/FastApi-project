@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import NutrientCard from '../components/ui/NutrientCard';
-
+import axios from 'axios';  
 import {
   FireIcon,     // Calories
   BoltIcon,     // Protein
@@ -15,36 +15,46 @@ const Dashboard = () => {
     carbs: 280,
     fats: 70,
   };
-
-  // User info state
+  const [userDetails, setUserDetails] = useState(null);
+useEffect(()=>{
+const get_userData=async ()=>{
+    const token=localStorage.getItem('userToken')
+    if(!token){
+      return;
+    }
+  try{
+    const response= await axios.get('http://127.0.0.1:8000/users/me',{
+      headers: {
+        Authorization :`Bearer ${token}`,
+      },
+    });
+    setUserDetails(response.data);
+  } catch (error) {
+        console.error("Failed to fetch user:", error);
+      }
+};
+get_userData();
+},[])
   const [showAbout, setShowAbout] = useState(false);
-  const [userDetails, setUserDetails] = useState({
-    name: 'John Doe',
-    email: 'john@example.com',
-    age: 25,
-    goalCalories: 2200,
-  });
+  
 
-  // Handle form input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setUserDetails(prev => ({ ...prev, [name]: value }));
   };
 
-  // Handle form submit (You can integrate API call here)
   const handleSubmit = (e) => {
     e.preventDefault();
-    alert('User details updated!'); // Replace with real update logic
+    alert('User details updated!');
     setShowAbout(false);
   };
 
   return (
-    <div className='relative px-6 py-8'>
+    <div className='px-6 py-8 h-full min-h-screen'>
       {/* Header */}
       <div className='flex flex-col items-center mt-5'>
         <h1 className='text-white font-bold text-4xl'>Dashboard</h1>
 
-        {/* About Me Button */}
         <button
           onClick={() => setShowAbout(prev => !prev)}
           className="mt-4 px-4 py-2 bg-indigo-600 rounded hover:bg-indigo-700 text-white font-semibold"
@@ -53,68 +63,79 @@ const Dashboard = () => {
         </button>
       </div>
 
-      {/* About Me Section */}
+      {/* About Me Section - Fixed/Overlay */}
       {showAbout && (
-        <div className="max-w-md mx-auto mt-6 p-6 bg-gray-800 rounded shadow-md text-white">
-          <h2 className="text-2xl font-semibold mb-4">User Details</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block mb-1">Name</label>
-              <input
-                type="text"
-                name="name"
-                value={userDetails.name}
-                onChange={handleChange}
-                className="w-full p-2 rounded bg-gray-700 text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block mb-1">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={userDetails.email}
-                onChange={handleChange}
-                className="w-full p-2 rounded bg-gray-700 text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block mb-1">Age</label>
-              <input
-                type="number"
-                name="age"
-                value={userDetails.age}
-                onChange={handleChange}
-                className="w-full p-2 rounded bg-gray-700 text-white"
-                min="1"
-                required
-              />
-            </div>
-            <div>
-              <label className="block mb-1">Daily Calorie Goal</label>
-              <input
-                type="number"
-                name="goalCalories"
-                value={userDetails.goalCalories}
-                onChange={handleChange}
-                className="w-full p-2 rounded bg-gray-700 text-white"
-                min="0"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full mt-4 py-2 bg-green-600 rounded hover:bg-green-700 font-semibold"
-            >
-              Update Details
-            </button>
-          </form>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="max-w-md w-full p-6 bg-gray-800 rounded shadow-md text-white">
+            <h2 className="text-2xl font-semibold mb-4">User Details</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block mb-1">Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={userDetails.username}
+                  onChange={handleChange}
+                  className="w-full p-2 rounded bg-gray-700 text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={userDetails.email}
+                  onChange={handleChange}
+                  className="w-full p-2 rounded bg-gray-700 text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Age</label>
+                <input
+                  type="number"
+                  name="age"
+                  value={userDetails.age}
+                  onChange={handleChange}
+                  className="w-full p-2 rounded bg-gray-700 text-white"
+                  min="1"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Daily Calorie Goal</label>
+                <input
+                  type="number"
+                  name="goalCalories"
+                  value={userDetails.goal_calories}
+                  onChange={handleChange}
+                  className="w-full p-2 rounded bg-gray-700 text-white"
+                  min="0"
+                  required
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-2 bg-green-600 rounded hover:bg-green-700 font-semibold"
+                >
+                  Update Details
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAbout(false)}
+                  className="flex-1 py-2 bg-gray-600 rounded hover:bg-gray-700 font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
-      {/* Nutrient Cards with icons */}
+      {/* Nutrient Cards */}
       <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-10'>
         <NutrientCard
           label="Calories"
