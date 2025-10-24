@@ -3,6 +3,8 @@ import { Link, NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, PlusSquare, MessageSquare, ChefHat, ChevronsLeft, Trash2, X, Save, RotateCcw } from 'lucide-react';
 import axios from 'axios';
+import { Heart } from "lucide-react";
+import { useChat } from '../contexts/ChatContext';
 
 const AuthLayout = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -14,6 +16,11 @@ const AuthLayout = () => {
   const [isCreatingNewRecipe, setIsCreatingNewRecipe] = useState(false);
   const [newRecipeName, setNewRecipeName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [isProcessingFavorite, setIsProcessingFavorite] = useState(false);
+
+  // Use chat context
+  const { chatHistory, setChatHistory, refreshTrigger } = useChat();
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -41,13 +48,7 @@ const AuthLayout = () => {
     fetchUser();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('userToken');
-    navigate('/login');
-  };
-
-  const [chatHistory, setChatHistory] = useState([]);
-
+  // Fetch chat history when refreshTrigger changes
   useEffect(() => {
     const fetchHistory = async () => {
       const token = localStorage.getItem('userToken');
@@ -66,7 +67,12 @@ const AuthLayout = () => {
     };
 
     fetchHistory();
-  }, []);
+  }, [refreshTrigger, setChatHistory]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('userToken');
+    navigate('/login');
+  };
 
   const handleNewRecipeClick = () => {
     setIsCreatingNewRecipe(true);
@@ -98,6 +104,7 @@ const AuthLayout = () => {
           }
         );
         
+        // Update local state immediately
         setChatHistory([newRecipeName.trim(), ...chatHistory]);
         setIsCreatingNewRecipe(false);
         setNewRecipeName('');
@@ -225,6 +232,27 @@ const AuthLayout = () => {
             >
               <PlusSquare size={20} />
               {!isSidebarCollapsed && 'New Recipe'}
+            </button>
+          </motion.div>
+
+          <motion.div variants={itemVariants}>
+            <button
+              onClick={() => navigate('/favorites')}
+              disabled={isProcessingFavorite}
+              className="w-full flex items-center justify-center gap-2 
+                         bg-gradient-to-r from-pink-500 to-purple-600 
+                         text-white font-bold py-3 px-4 rounded-lg 
+                         hover:shadow-xl hover:shadow-purple-500/30 
+                         transform hover:scale-105 transition-all mb-8 
+                         shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              <motion.div
+                animate={isFavorited ? { scale: [1, 1.3, 1], rotate: [0, -5, 0] } : { scale: 1, rotate: 0 }}
+                transition={{ duration: 0.6, repeat: isFavorited ? Infinity : 0 }}
+              >
+                <Heart size={20} fill={isFavorited ? "pink" : "transparent"} stroke="white" />
+              </motion.div>
+              {!isSidebarCollapsed && (isFavorited ? "Favorited" : "Favorites")}
             </button>
           </motion.div>
 

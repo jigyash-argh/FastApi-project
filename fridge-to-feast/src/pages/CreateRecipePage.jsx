@@ -1,10 +1,8 @@
-// -------------------------------------------------------------------------
-// File: src/pages/CreateRecipePage.jsx (FIXED RELOAD & SCROLLBAR VERSION)
-// -------------------------------------------------------------------------
+import { useChat } from '../contexts/ChatContext';
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, UtensilsCrossed, Clock, Flame, Users, ChefHat, Star, Heart, Share2, Bookmark, Timer, Zap } from 'lucide-react';
-import { useParams,Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 
 // --- ICONS ---
@@ -42,8 +40,73 @@ const LoadingIndicator = () => (
 
 // Floating Action Buttons for Recipe
 const RecipeActions = ({ recipe }) => {
-  const [isSaved, setIsSaved] = useState(false);
+  const [isCooked, setIsCooked] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Get recipe name from the recipe object
+  const recipeName = recipe?.title;
+
+  // Check if this recipe is already favorited when component mounts
+  useEffect(() => {
+    const checkFavoriteStatus = async () => {
+      if (!recipeName) return;
+      
+      const token = localStorage.getItem('userToken');
+      if (!token) return;
+
+      try {
+        const response = await axios.get('http://127.0.0.1:8000/favorites', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const favorites = response.data.favorites || [];
+        setIsLiked(favorites.includes(recipeName));
+      } catch (error) {
+        console.error('Failed to check favorite status:', error);
+      }
+    };
+
+    checkFavoriteStatus();
+  }, [recipeName]);
+
+  const handleToggleFavorite = async () => {
+    if (!recipeName) {
+      console.error('No recipe name available');
+      return;
+    }
+
+    const token = localStorage.getItem('userToken');
+    if (!token) {
+      alert('Please log in to save favorites');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await axios.post(
+        `http://127.0.0.1:8000/favorites/${encodeURIComponent(recipeName)}`, 
+        {}, 
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      // Toggle the local state
+      setIsLiked(!isLiked);
+      
+      // Show feedback to user
+      if (!isLiked) {
+        console.log('Recipe added to favorites!');
+      } else {
+        console.log('Recipe removed from favorites!');
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+      alert('Failed to update favorite');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <motion.div 
@@ -55,12 +118,14 @@ const RecipeActions = ({ recipe }) => {
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => setIsLiked(!isLiked)}
+        onClick={handleToggleFavorite}
+        disabled={loading || !recipeName}
         className={`p-2 rounded-full border transition-all duration-300 ${
           isLiked 
             ? 'bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-500/25' 
             : 'bg-white border-gray-300 text-gray-600 hover:border-rose-300 hover:text-rose-500'
-        }`}
+        } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+        title={isLiked ? 'Remove from favorites' : 'Add to favorites'}
       >
         <Heart size={16} fill={isLiked ? 'currentColor' : 'none'} />
       </motion.button>
@@ -68,14 +133,16 @@ const RecipeActions = ({ recipe }) => {
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => setIsSaved(!isSaved)}
+        onClick={() => setIsCooked(!isCooked)}
         className={`p-2 rounded-full border transition-all duration-300 ${
-          isSaved 
+          isCooked 
             ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/25' 
             : 'bg-white border-gray-300 text-gray-600 hover:border-amber-300 hover:text-amber-500'
         }`}
       >
-        <Bookmark size={16} fill={isSaved ? 'currentColor' : 'none'} />
+        <h1>
+          Add to Calories
+        </h1>
       </motion.button>
       
       <motion.button
@@ -319,6 +386,9 @@ const CreateRecipePage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef(null);
 
+  // Use chat context to refresh sidebar
+  const { refreshChatHistory } = useChat();
+
   // FIX: Parse messages from history to handle JSON strings
   const parseMessageFromHistory = (message) => {
     if (message.sender === 'ai') {
@@ -444,6 +514,9 @@ const CreateRecipePage = () => {
         }
       }
 
+      // Refresh the sidebar chat history after successful AI response
+      refreshChatHistory();
+
     } catch (error) {
       console.error("Failed to get AI response:", error);
       const errorMessage = { 
@@ -491,11 +564,11 @@ const CreateRecipePage = () => {
           >
             Ready to Cook!
           </motion.div>
-      <Link to="/dashboard">
-      <div className="inline-block px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-semibold text-lg shadow-lg hover:scale-105 transition-transform hover:from-purple-600 hover:to-indigo-700">
-        Go to Dashboard
-      </div>
-    </Link>
+          <Link to="/dashboard">
+            <div className="inline-block px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-semibold text-lg shadow-lg hover:scale-105 transition-transform hover:from-purple-600 hover:to-indigo-700">
+              Go to Dashboard
+            </div>
+          </Link>
         </motion.header>
 
         {/* Enhanced Chat Area - REMOVED SCROLLBAR */}
@@ -589,7 +662,7 @@ const CreateRecipePage = () => {
 
         {/* Enhanced Input Form */}
         <motion.footer 
-          className="p-6 flex-shrink-0 bg-transaprent backdrop-blur-sm border-t border-gray-200/50"
+          className="p-6 flex-shrink-0 bg-transparent backdrop-blur-sm border-t border-gray-200/50"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.3 }}
@@ -623,7 +696,7 @@ const CreateRecipePage = () => {
             </motion.button>
           </form>
           <motion.p 
-            className="text-center text-gray-500 text-sm mt-3 bg-top-right from-cyan-400 to-cyan-50"
+            className="text-center text-gray-500 text-sm mt-3"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}

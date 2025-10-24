@@ -10,7 +10,8 @@ import {
   ExclamationTriangleIcon,
   CalendarIcon,
   ChartBarIcon,
-  BookOpenIcon
+  BookOpenIcon,
+  ClockIcon
 } from '@heroicons/react/24/solid';
 
 const Dashboard = () => {
@@ -20,6 +21,44 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [todayCalories, setTodayCalories] = useState(0);
+  const [cookedRecipes, setCookedRecipes] = useState([]);
+  const [recipesTried, setRecipesTried] = useState(0);
+  const [cookingStreak, setCookingStreak] = useState(0);
+
+  // Fetch user data and cooked recipes
+  useEffect(() => {
+    const get_userData = async () => {
+      const token = localStorage.getItem('userToken');
+      if (!token) {
+        setError("Please log in to view dashboard");
+        return;
+      }
+      try {
+        setIsLoading(true);
+        const [userResponse, cookedResponse] = await Promise.all([
+          axios.get('http://127.0.0.1:8000/users/me', {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          axios.get('http://127.0.0.1:8000/cooked-recipes/today', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        ]);
+        
+        setUserDetails(userResponse.data);
+        setTodayCalories(cookedResponse.data.total_calories || 0);
+        setCookedRecipes(cookedResponse.data.recipes || []);
+        setRecipesTried(cookedResponse.data.total_recipes || 0);
+        setCookingStreak(cookedResponse.data.streak || 0);
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+        setError("Failed to load dashboard data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    get_userData();
+  }, []);
 
   // Smart weekly totals that adapt to user's calorie goal
   const getWeeklyTotals = () => {
@@ -34,30 +73,21 @@ const Dashboard = () => {
 
   const weeklyTotals = getWeeklyTotals();
 
-  useEffect(() => {
-    const get_userData = async () => {
-      const token = localStorage.getItem('userToken');
-      if (!token) {
-        setError("Please log in to view dashboard");
-        return;
-      }
-      try {
-        setIsLoading(true);
-        const response = await axios.get('http://127.0.0.1:8000/users/me', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        setUserDetails(response.data);
-      } catch (error) {
-        console.error("Failed to fetch user:", error);
-        setError("Failed to load user data");
-      } finally {
-        setIsLoading(false);
-      }
+  // Calculate daily progress with REAL data from cooked recipes
+  const calculateDailyProgress = () => {
+    const goal = userDetails?.goal_calories || 2200;
+    const consumed = todayCalories; // Real data from cooked recipes
+    const progress = Math.min((consumed / goal) * 100, 100);
+    
+    return {
+      consumed,
+      goal,
+      progress,
+      remaining: Math.max(goal - consumed, 0)
     };
-    get_userData();
-  }, []);
+  };
+
+  const dailyProgress = calculateDailyProgress();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -131,7 +161,6 @@ const Dashboard = () => {
       setTimeout(() => {
         setShowAbout(false);
         setSuccess("");
-        
       }, 2000);
       
     } catch (error) {
@@ -142,32 +171,36 @@ const Dashboard = () => {
     }
   };
 
-  // Calculate daily progress (mock data - you can replace with real data)
-  const calculateDailyProgress = () => {
-    const goal = userDetails?.goal_calories || 2200;
-    const consumed = 1850; // This would come from your food tracking API
-    const progress = Math.min((consumed / goal) * 100, 100);
-    
-    return {
-      consumed,
-      goal,
-      progress,
-      remaining: Math.max(goal - consumed, 0)
-    };
-  };
-
-  const dailyProgress = calculateDailyProgress();
-
-  // Get calorie recommendation based on age and goal
+  // Get calorie recommendation based on age, goal, and actual consumption
   const getCalorieRecommendation = () => {
     const age = userDetails?.age || 25;
     const goal = userDetails?.goal_calories || 2200;
+    const consumed = todayCalories;
     
     if (age < 18) return "Consult a doctor for calorie recommendations";
     if (goal < 1200) return "Very low calorie goal - consider increasing for health";
     if (goal > 4000) return "High calorie goal - ensure balanced nutrition";
     
+    if (consumed === 0) return "Start cooking to track your calorie intake!";
+    if (consumed < goal * 0.5) return "You're below 50% of your goal - time to cook!";
+    if (consumed > goal * 1.2) return "You've exceeded your goal - great cooking day!";
+    if (consumed >= goal * 0.8) return "Almost at your goal - you're doing great!";
+    
     return "Your calorie goal looks good! Maintain balanced macros.";
+  };
+
+  // Calculate goal completion percentage
+  const calculateGoalCompletion = () => {
+    const goal = userDetails?.goal_calories || 2200;
+    return Math.min(Math.round((todayCalories / goal) * 100), 100);
+  };
+
+  // Format time for cooked recipes
+  const formatTime = (timestamp) => {
+    return new Date(timestamp).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
   };
 
   if (isLoading && !userDetails) {
@@ -243,6 +276,36 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {/* Today's Cooked Recipes */}
+          {cookedRecipes.length > 0 && (
+            <div className="mt-6 bg-gray-800 rounded-xl p-6">
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <ClockIcon className="w-5 h-5" />
+                Today's Cooked Recipes
+              </h2>
+              <div className="space-y-3">
+                {cookedRecipes.map((recipe, index) => (
+                  <div key={index} className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
+                    <div className="flex-1">
+                      <h3 className="text-white font-medium">{recipe.recipe_name}</h3>
+                      <p className="text-gray-400 text-sm">
+                        Cooked at {formatTime(recipe.cooked_at)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-amber-400 font-bold">{recipe.calories} kcal</p>
+                      <p className="text-gray-400 text-xs">per serving</p>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-3 border-t border-gray-600">
+                  <span className="text-white font-bold">Total Today</span>
+                  <span className="text-green-400 font-bold">{todayCalories} kcal</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Nutrient Cards */}
           <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-6'>
             <NutrientCard
@@ -279,24 +342,41 @@ const Dashboard = () => {
             />
           </div>
 
-          {/* Quick Stats - Fixed layout */}
+          {/* Quick Stats - Now with REAL data */}
           <div className="mt-6 grid grid-cols-3 gap-3 sm:gap-4 sm:gap-6">
             <div className="bg-gray-800 rounded-xl p-4 text-center">
               <CalendarIcon className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-white">7</div>
+              <div className="text-lg sm:text-2xl font-bold text-white">{cookingStreak}</div>
               <div className="text-gray-400 text-xs sm:text-sm">Days Streak</div>
             </div>
             <div className="bg-gray-800 rounded-xl p-4 text-center">
               <ChartBarIcon className="w-6 h-6 sm:w-8 sm:h-8 text-green-400 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-white">85%</div>
+              <div className="text-lg sm:text-2xl font-bold text-white">{calculateGoalCompletion()}%</div>
               <div className="text-gray-400 text-xs sm:text-sm">Goal Completion</div>
             </div>
             <div className="bg-gray-800 rounded-xl p-4 text-center">
               <BookOpenIcon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 mx-auto mb-2" />
-              <div className="text-lg sm:text-2xl font-bold text-white">12</div>
+              <div className="text-lg sm:text-2xl font-bold text-white">{recipesTried}</div>
               <div className="text-gray-400 text-xs sm:text-sm">Recipes Tried</div>
             </div>
           </div>
+
+          {/* Empty State for No Cooked Recipes */}
+          {cookedRecipes.length === 0 && (
+            <div className="mt-6 bg-gray-800 rounded-xl p-8 text-center">
+              <div className="text-gray-400 mb-3">🍳</div>
+              <h3 className="text-white font-semibold mb-2">No Recipes Cooked Today</h3>
+              <p className="text-gray-400 text-sm mb-4">
+                Start cooking to track your calorie intake and see your progress here!
+              </p>
+              <button
+                onClick={() => window.location.href = '/chat'}
+                className="px-6 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors"
+              >
+                Find Recipes to Cook
+              </button>
+            </div>
+          )}
         </div>
 
         {/* About Me Section - Fixed/Overlay */}
