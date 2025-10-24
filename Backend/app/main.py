@@ -5,13 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import logging
 from datetime import datetime
-
+from bson import ObjectId
 from app.chat import get_recipe_and_video, get_structured_fallback_recipe
 from . import auth, db, chat
 from .models import (
     UserCreate, Token, UserPublic, RecipeRequest, 
     ChatHistoryCreate, ChatHistoryItem, MessageCreate, 
-    ChatHistoryDelete, ChatRequest, UserUpdate
+    ChatHistoryDelete, ChatRequest, UserUpdate,FavoriteRecipe
 )
 
 app = FastAPI(title="Food-to-Feast API")
@@ -64,7 +64,9 @@ async def register_user(user: UserCreate):
         "age": 25,
         "goal_calories": 2000,
         "hashed_pass": hashed_password,
-        "created_at": datetime.utcnow().isoformat()
+        "favorites":[],
+        "created_at": datetime.utcnow().isoformat(),
+        "cooked":[],
     }
 
     # Insert into database
@@ -232,3 +234,20 @@ async def update_user_me(user_update: UserUpdate, current_user: dict = Depends(a
         age=updated_user.get("age", 25),
         goal_calories=updated_user.get("goal_calories", 2000)
     )
+@app.post("/favorites/{recipe_name}")
+async def toggle_favorite(recipe_name: str, current_user: dict = Depends(auth.get_current_user)):
+    """Toggle favorite status for a recipe"""
+    favorites = current_user.get("favorites", [])
+    
+    if recipe_name in favorites:
+        # Remove from favorites
+        await db.remove_from_favorites(current_user["username"], recipe_name)
+        return {"favorited": False, "message": "Recipe removed from favorites"}
+    else:
+        # Add to favorites
+        await db.add_to_favorite(current_user["username"], recipe_name)
+        return {"favorited": True, "message": "Recipe added to favorites"}
+@app.get("/favorites")
+async def get_favorite(current_user:dict=Depends(auth.get_current_user)):
+    favs=await db.get_favorites(current_user["username"])
+    return {"favorites": favs}

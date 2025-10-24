@@ -54,7 +54,19 @@ class RecipeRequest(BaseModel):
                 "ingredients": "onions, tomatoes, leftover chicken, rice"
             }
         }
-
+        
+class FavoriteRecipe(BaseModel):
+    recipe_id: str
+    recipe_name: str
+    ingredients: Optional[str] = None
+    instructions: Optional[List[str]] = None
+    image_url: Optional[str] = None
+#cooked recipe 
+class Cooked_recipe(BaseModel):
+    recipe_id:str
+    recipe_name:str
+    recipe_calories:int
+    recipe_for_num:int 
 # --- Chat Models ---
 
 class ChatRequest(BaseModel):
