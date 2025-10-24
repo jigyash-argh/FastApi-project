@@ -89,7 +89,7 @@ def get_working_image_url(search_term: str) -> str:
 
 def get_recipe_and_video(query: str) -> Dict:
     """
-    Use OpenRouter's free tier to get recipe information
+    Use OpenRouter's free tier to get recipe information WITH CALORIES
     """
     print(f"🔍 Processing recipe request: '{query}'")
     
@@ -103,14 +103,15 @@ def get_recipe_and_video(query: str) -> Dict:
         "X-Title": "Recipe Assistant"
     }
     
-    # More specific prompt to force structured response
-    prompt = f"""You are a professional chef. Create a DETAILED recipe for: "{query}"
+    # UPDATED PROMPT: Now includes calories per serving
+    prompt = f"""You are a professional chef and nutritionist. Create a DETAILED recipe for: "{query}"
 
 CRITICAL: You MUST return ONLY VALID JSON with EXACTLY these keys:
 - "title": string (recipe title)
 - "prepTime": string (e.g., "15 mins")
 - "cookTime": string (e.g., "30 mins")
 - "servings": string (e.g., "4 people")
+- "calories_per_serving": number (estimated calories per serving)
 - "ingredients": array of strings (e.g., ["1 cup flour", "2 eggs"])
 - "instructions": array of strings (numbered steps)
 - "youtube_search_term": string
@@ -122,6 +123,7 @@ IMPORTANT:
 - Do NOT include ```json or ```
 - Provide SPECIFIC measurements and steps
 - Make ingredients and instructions detailed
+- Provide REALISTIC calorie estimates based on ingredients
 
 Example of what I want:
 {{
@@ -129,6 +131,7 @@ Example of what I want:
   "prepTime": "15 mins",
   "cookTime": "20 mins", 
   "servings": "3-4 people",
+  "calories_per_serving": 420,
   "ingredients": ["250g paneer, cubed", "2 tbsp butter", "4 garlic cloves, minced", "1 onion, sliced", "1 capsicum, sliced", "1 tsp garam masala", "1/2 tsp turmeric", "salt to taste", "2 tbsp cream", "fresh coriander for garnish"],
   "instructions": ["Heat butter in a pan, add minced garlic and sauté until golden", "Add sliced onions and cook until translucent", "Add capsicum and cook for 2 minutes", "Add paneer cubes and spices, mix gently", "Cook for 5-7 minutes until paneer is heated through", "Add cream and mix well", "Garnish with fresh coriander and serve hot"],
   "youtube_search_term": "garlic butter paneer recipe",
@@ -176,8 +179,8 @@ Return ONLY the JSON:"""
                 recipe_data = json.loads(cleaned_content)
                 print("✅ JSON parsed successfully!")
                 
-                # Validate required structure
-                required_keys = ["title", "prepTime", "cookTime", "servings", "ingredients", "instructions"]
+                # Validate required structure (now includes calories_per_serving)
+                required_keys = ["title", "prepTime", "cookTime", "servings", "calories_per_serving", "ingredients", "instructions"]
                 if not all(key in recipe_data for key in required_keys):
                     print("⚠️ Missing some required keys, using fallback")
                     return get_structured_fallback_recipe(query)
@@ -187,19 +190,23 @@ Return ONLY the JSON:"""
                 prep_time = recipe_data.get("prepTime", "15-20 mins").strip()
                 cook_time = recipe_data.get("cookTime", "30-45 mins").strip()
                 servings = recipe_data.get("servings", "2-4 people").strip()
+                calories = recipe_data.get("calories_per_serving", 350)  # Default fallback
+                
+                # Ensure calories is a number
+                try:
+                    calories = int(calories)
+                except (ValueError, TypeError):
+                    calories = 350  # Default if parsing fails
                 
                 # Ensure ingredients and instructions are proper arrays
                 ingredients = recipe_data.get("ingredients", [])
                 if isinstance(ingredients, str):
-                    # Split by newlines or commas and clean up
                     ingredients = [line.strip() for line in ingredients.replace(',', '\n').split('\n') if line.strip()]
                 
                 instructions = recipe_data.get("instructions", [])
                 if isinstance(instructions, str):
-                    # Split by newlines and clean up
                     instructions = [line.strip() for line in instructions.split('\n') if line.strip()]
                 elif isinstance(instructions, list) and instructions:
-                    # Ensure each instruction is properly formatted
                     instructions = [str(step).strip() for step in instructions if step]
                 
                 youtube_search = recipe_data.get("youtube_search_term", query).strip()
@@ -209,12 +216,13 @@ Return ONLY the JSON:"""
                 image_url = get_working_image_url(image_search)
                 youtube_link = f"https://www.youtube.com/results?search_query={urllib.parse.quote(youtube_search + ' recipe')}"
                 
-                # Structured result for frontend
+                # Structured result for frontend - NOW INCLUDES CALORIES
                 result = {
                     "title": title,
                     "prepTime": prep_time,
                     "cookTime": cook_time,
                     "servings": servings,
+                    "calories_per_serving": calories,  # NEW: Actual calories from AI
                     "ingredients": ingredients,
                     "instructions": instructions,
                     "youtube_link": youtube_link,
@@ -222,6 +230,7 @@ Return ONLY the JSON:"""
                 }
                 
                 print(f"✅ Structured recipe generated successfully!")
+                print(f"🔥 Calories per serving: {calories}")
                 print(f"🖼️ Image URL: {image_url}")
                 print(f"🎥 YouTube URL: {youtube_link}")
                 return result
@@ -239,20 +248,20 @@ Return ONLY the JSON:"""
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         return get_structured_fallback_recipe(query)
-
 def get_structured_fallback_recipe(query: str) -> Dict:
     """
-    Structured fallback recipe that matches frontend expectations
+    Structured fallback recipe that matches frontend expectations WITH CALORIES
     """
     print("🔄 Using structured fallback recipe")
     
-    # Specific fallback recipes for common queries with reliable image URLs
+    # Specific fallback recipes for common queries with reliable image URLs AND CALORIES
     structured_recipes = {
         "paneer": {
             "title": "Garlic Butter Paneer",
             "prepTime": "15 mins",
             "cookTime": "20 mins",
             "servings": "3-4 people",
+            "calories_per_serving": 420,  # NEW: Calorie information
             "ingredients": [
                 "250g paneer, cubed",
                 "2 tbsp butter",
@@ -278,7 +287,7 @@ def get_structured_fallback_recipe(query: str) -> Dict:
                 "Garnish with fresh coriander leaves",
                 "Serve hot with roti or naan"
             ],
-            "image_url": "https://i.imgur.com/6Q9p7Fq.jpg",  # Paneer dish from Imgur
+            "image_url": "https://i.imgur.com/6Q9p7Fq.jpg",
             "youtube_link": "https://www.youtube.com/results?search_query=garlic+butter+paneer+recipe"
         },
         "chicken": {
@@ -286,6 +295,7 @@ def get_structured_fallback_recipe(query: str) -> Dict:
             "prepTime": "30 mins", 
             "cookTime": "40 mins",
             "servings": "4 people",
+            "calories_per_serving": 580,  # NEW: Calorie information
             "ingredients": [
                 "500g chicken, cubed",
                 "2 tbsp butter",
@@ -309,7 +319,7 @@ def get_structured_fallback_recipe(query: str) -> Dict:
                 "Add cream and kasuri methi, simmer for 5 minutes",
                 "Garnish with fresh coriander and serve with rice"
             ],
-            "image_url": "https://i.imgur.com/8JZ3q4L.jpg",  # Butter chicken from Imgur
+            "image_url": "https://i.imgur.com/8JZ3q4L.jpg",
             "youtube_link": "https://www.youtube.com/results?search_query=butter+chicken+recipe"
         },
         "pasta": {
@@ -317,6 +327,7 @@ def get_structured_fallback_recipe(query: str) -> Dict:
             "prepTime": "10 mins",
             "cookTime": "15 mins",
             "servings": "2 people",
+            "calories_per_serving": 650,  # NEW: Calorie information
             "ingredients": [
                 "200g pasta",
                 "3 tbsp butter",
@@ -335,7 +346,7 @@ def get_structured_fallback_recipe(query: str) -> Dict:
                 "Add cooked pasta to the sauce and toss to coat",
                 "Garnish with fresh parsley and serve immediately"
             ],
-            "image_url": "https://i.imgur.com/3Q9p7Fq.jpg",  # Pasta from Imgur
+            "image_url": "https://i.imgur.com/3Q9p7Fq.jpg",
             "youtube_link": "https://www.youtube.com/results?search_query=creamy+garlic+pasta+recipe"
         }
     }
@@ -348,13 +359,14 @@ def get_structured_fallback_recipe(query: str) -> Dict:
             print(f"✅ Found matching fallback recipe for: {key}")
             return recipe
     
-    # Generic structured fallback with reliable image
+    # Generic structured fallback with reliable image AND CALORIES
     print("🔄 Using generic fallback recipe")
     return {
         "title": f"Delicious {query.title()}",
         "prepTime": "15-20 mins",
         "cookTime": "30-45 mins", 
         "servings": "2-4 people",
+        "calories_per_serving": 400,  # NEW: Default calorie estimate
         "ingredients": [
             "Fresh ingredients based on your request",
             "Essential spices and seasonings",
@@ -369,9 +381,8 @@ def get_structured_fallback_recipe(query: str) -> Dict:
             "Garnish beautifully and serve hot"
         ],
         "youtube_link": f"https://www.youtube.com/results?search_query={urllib.parse.quote(query + ' recipe')}",
-        "image_url": "https://picsum.photos/500/500?random=1&food=delicious"  # Lorem Picsum fallback
+        "image_url": "https://picsum.photos/500/500?random=1&food=delicious"
     }
-
 def get_fallback_recipe(query: str) -> Dict:
     """Simple fallback function for main.py"""
     return get_structured_fallback_recipe(query)

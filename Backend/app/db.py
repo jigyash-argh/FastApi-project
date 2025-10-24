@@ -1,7 +1,7 @@
-# app/db.py
-import motor.motor_asyncio
-from .config import settings  # <-- IMPORT from our new config file
 
+import motor.motor_asyncio 
+from .config import settings  # <-- IMPORT from our new config file
+from datetime import datetime,timedelta
 # This is the main connection to your MongoDB database
 # It now uses the DATABASE_URL from the central settings object
 client = motor.motor_asyncio.AsyncIOMotorClient(settings.DATABASE_URL)

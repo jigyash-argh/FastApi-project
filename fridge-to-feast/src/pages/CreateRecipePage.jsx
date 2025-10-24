@@ -43,6 +43,7 @@ const RecipeActions = ({ recipe }) => {
   const [isCooked, setIsCooked] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [cookLoading, setCookLoading] = useState(false);
 
   // Get recipe name from the recipe object
   const recipeName = recipe?.title;
@@ -108,6 +109,58 @@ const RecipeActions = ({ recipe }) => {
     }
   };
 
+  const handleMarkAsCooked = async () => {
+    if (!recipe) {
+      console.error('No recipe data available');
+      return;
+    }
+
+    const token = localStorage.getItem('userToken');
+    if (!token) {
+      alert('Please log in to track cooked recipes');
+      return;
+    }
+
+    setCookLoading(true);
+    try {
+      // Use ACTUAL calories from AI response
+      const calories = recipe.calories_per_serving || 400; // Fallback to 400 if not provided
+      
+      const cookedData = {
+        recipe_name: recipe.title,
+        calories: calories,
+        servings: 1, // Default to 1 serving
+        recipe_data: {
+          ingredients: recipe.ingredients,
+          instructions: recipe.instructions,
+          prepTime: recipe.prepTime,
+          cookTime: recipe.cookTime,
+          calories_per_serving: calories // Include calorie info in recipe data
+        }
+      };
+
+      await axios.post(
+        'http://127.0.0.1:8000/cooked-recipes',
+        cookedData,
+        {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      setIsCooked(true);
+      alert(`🎉 "${recipe.title}" added to your cooked recipes! ${calories} calories logged.`);
+      
+    } catch (error) {
+      console.error('Failed to mark as cooked:', error);
+      alert('Failed to add recipe to cooked history');
+    } finally {
+      setCookLoading(false);
+    }
+  };
+
   return (
     <motion.div 
       className="flex items-center gap-2 mt-4"
@@ -133,16 +186,22 @@ const RecipeActions = ({ recipe }) => {
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => setIsCooked(!isCooked)}
-        className={`p-2 rounded-full border transition-all duration-300 ${
+        onClick={handleMarkAsCooked}
+        disabled={cookLoading}
+        className={`p-3 rounded-full border transition-all duration-300 flex items-center gap-2 ${
           isCooked 
             ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/25' 
             : 'bg-white border-gray-300 text-gray-600 hover:border-amber-300 hover:text-amber-500'
-        }`}
+        } ${cookLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        <h1>
-          Add to Calories
-        </h1>
+        {cookLoading ? (
+          <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <Flame size={16} fill={isCooked ? 'currentColor' : 'none'} />
+        )}
+        <span className="text-sm font-medium">
+          {isCooked ? 'Added to Calories' : 'Add to Calories'}
+        </span>
       </motion.button>
       
       <motion.button
@@ -246,7 +305,7 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url }) => {
 
       {/* Recipe Stats */}
       <motion.div 
-        className="grid grid-cols-3 gap-4"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-4"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
@@ -265,6 +324,13 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url }) => {
           <Users className="h-6 w-6 text-emerald-600 mx-auto mb-2" />
           <div className="text-sm text-emerald-800 font-semibold">Servings</div>
           <div className="text-lg font-bold text-emerald-900">{parsedRecipe.servings}</div>
+        </div>
+        <div className="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-xl border border-red-200">
+          <Flame className="h-6 w-6 text-red-600 mx-auto mb-2" />
+          <div className="text-sm text-red-800 font-semibold">Calories</div>
+          <div className="text-lg font-bold text-red-900">
+            {parsedRecipe.calories_per_serving || 'N/A'}
+          </div>
         </div>
       </motion.div>
 

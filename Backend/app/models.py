@@ -1,6 +1,6 @@
 # app/models.py
 from pydantic import BaseModel, EmailStr, Field, validator
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 # --- User Models ---
@@ -61,12 +61,55 @@ class FavoriteRecipe(BaseModel):
     ingredients: Optional[str] = None
     instructions: Optional[List[str]] = None
     image_url: Optional[str] = None
-#cooked recipe 
-class Cooked_recipe(BaseModel):
-    recipe_id:str
-    recipe_name:str
-    recipe_calories:int
-    recipe_for_num:int 
+
+# --- Cooked Recipes Models ---
+
+class CookedRecipeCreate(BaseModel):
+    recipe_name: str
+    calories: int = Field(..., gt=0, description="Calories must be positive")
+    cooked_at: Optional[str] = None
+    servings: Optional[int] = Field(1, gt=0, description="Servings must be positive")
+    recipe_data: Optional[Dict[str, Any]] = None
+
+class CookedRecipeResponse(BaseModel):
+    recipe_name: str
+    calories: int
+    cooked_at: str
+    servings: int
+
+class TodayCookedRecipesResponse(BaseModel):
+    recipes: List[CookedRecipeResponse]
+    total_calories: int
+    total_recipes: int
+
+class DashboardStats(BaseModel):
+    today_calories: int
+    today_recipes: List[CookedRecipeResponse]
+    total_recipes: int
+    streak: int
+
+class WeeklyCalories(BaseModel):
+    date: str
+    day_name: str
+    calories: int
+    recipes_count: int
+
+class WeeklyCaloriesResponse(BaseModel):
+    weekly_data: List[WeeklyCalories]
+
+class CookingInsights(BaseModel):
+    most_cooked_recipes: List[Dict[str, Any]]
+    average_calories_per_meal: float
+    total_meals_cooked: int
+
+class HealthMetrics(BaseModel):
+    age: Optional[int] = None
+    goal_calories: Optional[int] = None
+    weight: Optional[float] = None
+    height: Optional[float] = None
+    dietary_preferences: Optional[List[str]] = None
+    allergies: Optional[List[str]] = None
+
 # --- Chat Models ---
 
 class ChatRequest(BaseModel):

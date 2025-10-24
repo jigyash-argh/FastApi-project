@@ -251,3 +251,5 @@ async def toggle_favorite(recipe_name: str, current_user: dict = Depends(auth.ge
 async def get_favorite(current_user:dict=Depends(auth.get_current_user)):
     favs=await db.get_favorites(current_user["username"])
     return {"favorites": favs}
+#cooked
+@app.post("/cooked-recipe")
