@@ -11,7 +11,7 @@ from . import auth, db, chat
 from .models import (
     UserCreate, Token, UserPublic, RecipeRequest, 
     ChatHistoryCreate, ChatHistoryItem, MessageCreate, 
-    ChatHistoryDelete, ChatRequest, UserUpdate,FavoriteRecipe
+    ChatHistoryDelete, ChatRequest, UserUpdate,FavoriteRecipe,CookedRecipeResponse,CookedRecipeCreate
 )
 
 app = FastAPI(title="Food-to-Feast API")
@@ -252,4 +252,16 @@ async def get_favorite(current_user:dict=Depends(auth.get_current_user)):
     favs=await db.get_favorites(current_user["username"])
     return {"favorites": favs}
 #cooked
-@app.post("/cooked-recipe")
+@app.post("/cooked-recipe",response_model=CookedRecipeResponse)
+async def get_cooked_recipe(recipe_data:CookedRecipeCreate,current_user:dict=Depends(auth.get_current_user)):
+    cooked_data={
+            "username":current_user["username"],
+            "recipe_name":recipe_data.recipe_name,
+            "calories": recipe_data.calories,
+            
+            "cooked_at": recipe_data.cooked_at or datetime.utcnow().isoformat(),
+            "servings": recipe_data.servings or 1,
+            "recipe_data": recipe_data.recipe_data or {},
+            "created_at": datetime.utcnow()
+    }
+    result=await db.add_cooked_recipe_dashboard(current_user["username"],cooked_data)

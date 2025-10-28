@@ -1,18 +1,18 @@
 import { useChat } from '../contexts/ChatContext';
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, UtensilsCrossed, Clock, Flame, Users, ChefHat, Star, Heart, Share2, Bookmark, Timer, Zap } from 'lucide-react';
+import { Send, Users, UtensilsCrossed, Clock, Flame, ChefHat, Zap } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 
-// --- ICONS ---
+// KnifeFork icon component
 const GiKnifeForkCreate = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" {...props}>
     <path fill="currentColor" d="M16 1c-2.76 0-5 2.24-5 5v17h2V6c0-1.65 1.35-3 3-3s3 1.35 3 3v16h2V6c0-2.76-2.24-5-5-5m-5 2v3h2V3zm0 5v3h2V8zm0 5v3h2v-3zm0 5v3h2v-3zM4 3v18h2V3z"></path>
   </svg>
 );
 
-// --- HELPER COMPONENTS ---
+// LoadingIndicator component
 const LoadingIndicator = () => (
   <motion.div
     initial={{ transition: { staggerChildren: 0.1 } }}
@@ -38,193 +38,14 @@ const LoadingIndicator = () => (
   </motion.div>
 );
 
-// Floating Action Buttons for Recipe
-const RecipeActions = ({ recipe }) => {
-  const [isCooked, setIsCooked] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [cookLoading, setCookLoading] = useState(false);
-
-  // Get recipe name from the recipe object
-  const recipeName = recipe?.title;
-
-  // Check if this recipe is already favorited when component mounts
-  useEffect(() => {
-    const checkFavoriteStatus = async () => {
-      if (!recipeName) return;
-      
-      const token = localStorage.getItem('userToken');
-      if (!token) return;
-
-      try {
-        const response = await axios.get('http://127.0.0.1:8000/favorites', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const favorites = response.data.favorites || [];
-        setIsLiked(favorites.includes(recipeName));
-      } catch (error) {
-        console.error('Failed to check favorite status:', error);
-      }
-    };
-
-    checkFavoriteStatus();
-  }, [recipeName]);
-
-  const handleToggleFavorite = async () => {
-    if (!recipeName) {
-      console.error('No recipe name available');
-      return;
-    }
-
-    const token = localStorage.getItem('userToken');
-    if (!token) {
-      alert('Please log in to save favorites');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await axios.post(
-        `http://127.0.0.1:8000/favorites/${encodeURIComponent(recipeName)}`, 
-        {}, 
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      
-      // Toggle the local state
-      setIsLiked(!isLiked);
-      
-      // Show feedback to user
-      if (!isLiked) {
-        console.log('Recipe added to favorites!');
-      } else {
-        console.log('Recipe removed from favorites!');
-      }
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-      alert('Failed to update favorite');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMarkAsCooked = async () => {
-    if (!recipe) {
-      console.error('No recipe data available');
-      return;
-    }
-
-    const token = localStorage.getItem('userToken');
-    if (!token) {
-      alert('Please log in to track cooked recipes');
-      return;
-    }
-
-    setCookLoading(true);
-    try {
-      // Use ACTUAL calories from AI response
-      const calories = recipe.calories_per_serving || 400; // Fallback to 400 if not provided
-      
-      const cookedData = {
-        recipe_name: recipe.title,
-        calories: calories,
-        servings: 1, // Default to 1 serving
-        recipe_data: {
-          ingredients: recipe.ingredients,
-          instructions: recipe.instructions,
-          prepTime: recipe.prepTime,
-          cookTime: recipe.cookTime,
-          calories_per_serving: calories // Include calorie info in recipe data
-        }
-      };
-
-      await axios.post(
-        'http://127.0.0.1:8000/cooked-recipes',
-        cookedData,
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      setIsCooked(true);
-      alert(`🎉 "${recipe.title}" added to your cooked recipes! ${calories} calories logged.`);
-      
-    } catch (error) {
-      console.error('Failed to mark as cooked:', error);
-      alert('Failed to add recipe to cooked history');
-    } finally {
-      setCookLoading(false);
-    }
-  };
-
-  return (
-    <motion.div 
-      className="flex items-center gap-2 mt-4"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
-    >
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={handleToggleFavorite}
-        disabled={loading || !recipeName}
-        className={`p-2 rounded-full border transition-all duration-300 ${
-          isLiked 
-            ? 'bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-500/25' 
-            : 'bg-white border-gray-300 text-gray-600 hover:border-rose-300 hover:text-rose-500'
-        } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-        title={isLiked ? 'Remove from favorites' : 'Add to favorites'}
-      >
-        <Heart size={16} fill={isLiked ? 'currentColor' : 'none'} />
-      </motion.button>
-      
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={handleMarkAsCooked}
-        disabled={cookLoading}
-        className={`p-3 rounded-full border transition-all duration-300 flex items-center gap-2 ${
-          isCooked 
-            ? 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/25' 
-            : 'bg-white border-gray-300 text-gray-600 hover:border-amber-300 hover:text-amber-500'
-        } ${cookLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        {cookLoading ? (
-          <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <Flame size={16} fill={isCooked ? 'currentColor' : 'none'} />
-        )}
-        <span className="text-sm font-medium">
-          {isCooked ? 'Added to Calories' : 'Add to Calories'}
-        </span>
-      </motion.button>
-      
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className="p-2 rounded-full bg-white border border-gray-300 text-gray-600 hover:border-blue-300 hover:text-blue-500 transition-all duration-300"
-      >
-        <Share2 size={16} />
-      </motion.button>
-    </motion.div>
-  );
-};
-
-// Enhanced Recipe Display Component
+// Recipe Display Component
 const RecipeDisplay = ({ recipe, youtube_link, image_url }) => {
-  // FIX: Parse recipe if it's a JSON string from reload
   let parsedRecipe = recipe;
   
   if (typeof recipe === 'string') {
     try {
       parsedRecipe = JSON.parse(recipe);
     } catch (error) {
-      // If it's not JSON, keep it as string
       parsedRecipe = recipe;
     }
   }
@@ -437,29 +258,34 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url }) => {
           </div>
         )}
       </motion.div>
-
-      {/* Recipe Actions */}
-      <RecipeActions recipe={parsedRecipe} />
     </motion.div>
   );
 };
 
-// --- MAIN PAGE COMPONENT ---
 const CreateRecipePage = () => {
   const { chatId } = useParams();
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
 
-  // Use chat context to refresh sidebar
   const { refreshChatHistory } = useChat();
 
-  // FIX: Parse messages from history to handle JSON strings
+  // FIXED SCROLL BEHAVIOR
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'nearest'
+      });
+    }
+  }, [messages, isLoading]);
+
+  // Parse messages from history to handle JSON strings
   const parseMessageFromHistory = (message) => {
     if (message.sender === 'ai') {
       try {
-        // Try to parse the text as JSON for recipe data
         const parsedData = JSON.parse(message.text);
         if (parsedData && typeof parsedData === 'object') {
           return {
@@ -471,7 +297,6 @@ const CreateRecipePage = () => {
           };
         }
       } catch (error) {
-        // If it's not JSON, keep it as regular text
         return message;
       }
     }
@@ -490,7 +315,6 @@ const CreateRecipePage = () => {
               },
             });
             
-            // FIX: Parse all messages to handle JSON recipes
             const parsedMessages = response.data.messages.map(parseMessageFromHistory);
             setMessages(parsedMessages);
           } catch (error) {
@@ -509,10 +333,6 @@ const CreateRecipePage = () => {
 
     fetchMessages();
   }, [chatId]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -543,7 +363,7 @@ const CreateRecipePage = () => {
     }
 
     try {
-      const aiResponse = await axios.post('http://127.0.0.1:8000/chat', 
+      const response = await axios.post('http://127.0.0.1:8000/chat', 
         { message: inputValue },
         {
           headers: {
@@ -552,12 +372,15 @@ const CreateRecipePage = () => {
         }
       );
 
+      // FIX: The backend returns the recipe data directly, not wrapped in any object
+      const recipeData = response.data;
+
       const aiMessage = {
         sender: 'ai',
         isRecipe: true,
-        recipe: aiResponse.data,
-        youtube_link: aiResponse.data.youtube_link,
-        image_url: aiResponse.data.image_url,
+        recipe: recipeData,
+        youtube_link: recipeData.youtube_link,
+        image_url: recipeData.image_url,
         timestamp: new Date().toISOString()
       };
 
@@ -565,10 +388,9 @@ const CreateRecipePage = () => {
 
       if (token && chatId) {
         try {
-          // FIX: Save the structured data as JSON string for persistence
           await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, { 
             sender: 'ai', 
-            text: JSON.stringify(aiResponse.data), // Save as JSON string
+            text: JSON.stringify(recipeData),
             timestamp: new Date().toISOString()
           }, {
             headers: {
@@ -580,7 +402,6 @@ const CreateRecipePage = () => {
         }
       }
 
-      // Refresh the sidebar chat history after successful AI response
       refreshChatHistory();
 
     } catch (error) {
@@ -600,7 +421,7 @@ const CreateRecipePage = () => {
     <div className="h-full w-full bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 font-sans overflow-hidden">
       <div className="max-w-4xl mx-auto h-full flex flex-col">
 
-        {/* Enhanced Header */}
+        {/* Header */}
         <motion.header 
           className="flex justify-between items-center p-6 border-b border-gray-200/50 bg-transparent backdrop-blur-sm flex-shrink-0"
           initial={{ y: -20, opacity: 0 }}
@@ -637,8 +458,15 @@ const CreateRecipePage = () => {
           </Link>
         </motion.header>
 
-        {/* Enhanced Chat Area - REMOVED SCROLLBAR */}
-        <main className="flex-grow overflow-y-auto p-6 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        {/* Chat Area */}
+        <main 
+          ref={chatContainerRef}
+          className="flex-grow overflow-y-auto p-6 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          style={{ 
+            minHeight: 'calc(100vh - 140px)',
+            contain: 'layout style paint'
+          }}
+        >
           <AnimatePresence mode="popLayout">
             {messages.map((msg, index) => (
               <motion.div
@@ -726,7 +554,7 @@ const CreateRecipePage = () => {
           <div ref={chatEndRef} />
         </main>
 
-        {/* Enhanced Input Form */}
+        {/* Input Form */}
         <motion.footer 
           className="p-6 flex-shrink-0 bg-transparent backdrop-blur-sm border-t border-gray-200/50"
           initial={{ y: 20, opacity: 0 }}

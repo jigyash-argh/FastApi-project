@@ -108,7 +108,7 @@ const AuthLayout = () => {
         setChatHistory([newRecipeName.trim(), ...chatHistory]);
         setIsCreatingNewRecipe(false);
         setNewRecipeName('');
-        navigate('/chat');
+        navigate(`/chat/${encodeURIComponent(newRecipeName)}`);
       } catch (error) {
         console.error("Failed to create history item:", error);
         alert('Failed to create recipe. Please try again.');
