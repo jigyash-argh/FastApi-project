@@ -418,8 +418,8 @@ const CreateRecipePage = () => {
   };
 
   return (
-    <div className="h-full w-full bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 font-sans overflow-hidden">
-      <div className="max-w-4xl mx-auto h-full flex flex-col">
+    <div className="h-screen w-full bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 font-sans overflow-hidden flex flex-col">
+      <div className="max-w-4xl mx-auto w-full h-full flex flex-col">
 
         {/* Header */}
         <motion.header 
@@ -458,14 +458,10 @@ const CreateRecipePage = () => {
           </Link>
         </motion.header>
 
-        {/* Chat Area */}
+        {/* Chat Area - FIXED: Proper scroll container */}
         <main 
           ref={chatContainerRef}
-          className="flex-grow overflow-y-auto p-6 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-          style={{ 
-            minHeight: 'calc(100vh - 140px)',
-            contain: 'layout style paint'
-          }}
+          className="flex-1 overflow-y-auto p-6 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-0"
         >
           <AnimatePresence mode="popLayout">
             {messages.map((msg, index) => (
@@ -554,7 +550,7 @@ const CreateRecipePage = () => {
           <div ref={chatEndRef} />
         </main>
 
-        {/* Input Form */}
+        {/* Input Form - FIXED: Stays at bottom */}
         <motion.footer 
           className="p-6 flex-shrink-0 bg-transparent backdrop-blur-sm border-t border-gray-200/50"
           initial={{ y: 20, opacity: 0 }}
