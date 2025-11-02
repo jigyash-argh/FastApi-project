@@ -291,3 +291,10 @@ async def get_weekly_calories_data(current_user: dict = Depends(auth.get_current
     """
     weekly_data = await db.get_weekly_calories(current_user["username"])
     return {"weekly_data": weekly_data}
+@app.delete("/cooked-recipes/{recipe_name}")
+async def delete_cooked_recipe(recipe_name:str,cooked_at:str,current_user:dict=Depends(auth.get_current_user)):
+    result=await db.delete_cooked_recipe(current_user["username"],recipe_name,cooked_at)
+    if result.deleted_count > 0:
+        return {"success": True, "message": "Cooked recipe deleted successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="Cooked recipe not found")
