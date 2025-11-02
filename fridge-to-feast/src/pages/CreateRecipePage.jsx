@@ -1,7 +1,7 @@
 import { useChat } from '../contexts/ChatContext';
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Users, UtensilsCrossed, Clock, Flame, ChefHat, Zap } from 'lucide-react';
+import { Send, Users, UtensilsCrossed, Clock, Flame, ChefHat, Zap, Heart, CheckCircle } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 
@@ -39,7 +39,7 @@ const LoadingIndicator = () => (
 );
 
 // Recipe Display Component
-const RecipeDisplay = ({ recipe, youtube_link, image_url }) => {
+const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLiked = false, isCooked = false }) => {
   let parsedRecipe = recipe;
   
   if (typeof recipe === 'string') {
@@ -71,6 +71,43 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url }) => {
             {typeof parsedRecipe === 'string' ? parsedRecipe : 'Recipe details not available'}
           </pre>
         </div>
+        
+        {/* Action Buttons for non-structured recipes */}
+        <motion.div 
+          className="flex gap-3 mt-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+        >
+          <motion.button
+            onClick={onLike}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200 ${
+              isLiked 
+                ? 'bg-red-500 text-white shadow-lg' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Heart size={18} className={isLiked ? 'fill-current' : ''} />
+            {isLiked ? 'Liked' : 'Like'}
+          </motion.button>
+          
+          <motion.button
+            onClick={onCooked}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200 ${
+              isCooked 
+                ? 'bg-green-500 text-white shadow-lg' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <CheckCircle size={18} className={isCooked ? 'fill-current' : ''} />
+            {isCooked ? 'Cooked' : 'Mark as Cooked'}
+          </motion.button>
+        </motion.div>
+
         {image_url && (
           <motion.img 
             src={image_url} 
@@ -223,6 +260,42 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url }) => {
         </motion.div>
       )}
 
+      {/* Action Buttons */}
+      <motion.div 
+        className="flex gap-4 flex-wrap"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7 }}
+      >
+        <motion.button
+          onClick={onLike}
+          className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg ${
+            isLiked 
+              ? 'bg-red-500 text-white hover:bg-red-600' 
+              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+          }`}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Heart size={20} className={isLiked ? 'fill-current' : ''} />
+          {isLiked ? 'Recipe Liked!' : 'Like this Recipe'}
+        </motion.button>
+        
+        <motion.button
+          onClick={onCooked}
+          className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg ${
+            isCooked 
+              ? 'bg-green-500 text-white hover:bg-green-600' 
+              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+          }`}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <CheckCircle size={20} className={isCooked ? 'fill-current' : ''} />
+          {isCooked ? 'Marked as Cooked!' : 'I Cooked This'}
+        </motion.button>
+      </motion.div>
+
       {/* Image and YouTube Link */}
       <motion.div
         className="flex flex-col sm:flex-row gap-4"
@@ -293,7 +366,9 @@ const CreateRecipePage = () => {
             isRecipe: true,
             recipe: parsedData,
             youtube_link: parsedData.youtube_link,
-            image_url: parsedData.image_url
+            image_url: parsedData.image_url,
+            isLiked: message.isLiked || false,
+            isCooked: message.isCooked || false
           };
         }
       } catch (error) {
@@ -334,6 +409,80 @@ const CreateRecipePage = () => {
     fetchMessages();
   }, [chatId]);
 
+  const handleLike = async (messageIndex) => {
+    const token = localStorage.getItem('userToken');
+    const message = messages[messageIndex];
+    
+    if (!message.isRecipe) return;
+
+    try {
+      // Get recipe name from the recipe data
+      const recipeName = message.recipe.title || `Recipe-${messageIndex}`;
+      
+      // Call the favorites API
+      const response = await axios.post(
+        `http://127.0.0.1:8000/favorites/${encodeURIComponent(recipeName)}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      // Update local state based on API response
+      const updatedMessages = [...messages];
+      updatedMessages[messageIndex].isLiked = response.data.favorited;
+      setMessages(updatedMessages);
+
+      console.log(`Recipe ${response.data.favorited ? 'added to' : 'removed from'} favorites:`, recipeName);
+
+    } catch (error) {
+      console.error("Failed to update favorite status:", error);
+      // Optionally show error message to user
+    }
+  };
+
+  const handleCooked = async (messageIndex) => {
+    const token = localStorage.getItem('userToken');
+    const message = messages[messageIndex];
+    
+    if (!message.isRecipe) return;
+
+    try {
+      // Prepare cooked recipe data
+      const recipeData = {
+        recipe_name: message.recipe.title || `Recipe-${messageIndex}`,
+        calories: parseInt(message.recipe.calories_per_serving) || 0,
+        servings: message.recipe.servings || 1,
+        cooked_at: new Date().toISOString(),
+        recipe_data: message.recipe
+      };
+
+      // Call the cooked recipe API
+      const response = await axios.post(
+        'http://127.0.0.1:8000/cooked-recipe',
+        recipeData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      // Update local state
+      const updatedMessages = [...messages];
+      updatedMessages[messageIndex].isCooked = true;
+      setMessages(updatedMessages);
+
+      console.log('Recipe marked as cooked:', recipeData.recipe_name);
+
+    } catch (error) {
+      console.error("Failed to mark recipe as cooked:", error);
+      // Optionally show error message to user
+    }
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!inputValue.trim() || isLoading) return;
@@ -372,7 +521,6 @@ const CreateRecipePage = () => {
         }
       );
 
-      // FIX: The backend returns the recipe data directly, not wrapped in any object
       const recipeData = response.data;
 
       const aiMessage = {
@@ -381,6 +529,8 @@ const CreateRecipePage = () => {
         recipe: recipeData,
         youtube_link: recipeData.youtube_link,
         image_url: recipeData.image_url,
+        isLiked: false,
+        isCooked: false,
         timestamp: new Date().toISOString()
       };
 
@@ -391,6 +541,8 @@ const CreateRecipePage = () => {
           await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, { 
             sender: 'ai', 
             text: JSON.stringify(recipeData),
+            isLiked: false,
+            isCooked: false,
             timestamp: new Date().toISOString()
           }, {
             headers: {
@@ -503,9 +655,38 @@ const CreateRecipePage = () => {
                       recipe={msg.recipe}
                       youtube_link={msg.youtube_link}
                       image_url={msg.image_url}
+                      onLike={() => handleLike(index)}
+                      onCooked={() => handleCooked(index)}
+                      isLiked={msg.isLiked}
+                      isCooked={msg.isCooked}
                     />
                   ) : (
-                    <p className="whitespace-pre-wrap leading-relaxed break-words text-lg">{msg.text}</p>
+                    <div>
+                      <p className="whitespace-pre-wrap leading-relaxed break-words text-lg">{msg.text}</p>
+                      {/* Add action buttons for non-recipe AI messages if needed */}
+                      {msg.sender === 'ai' && !msg.isRecipe && (
+                        <motion.div 
+                          className="flex gap-3 mt-4"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.3 }}
+                        >
+                          <motion.button
+                            onClick={() => handleLike(index)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200 ${
+                              msg.isLiked 
+                                ? 'bg-red-500 text-white shadow-lg' 
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            <Heart size={18} className={msg.isLiked ? 'fill-current' : ''} />
+                            {msg.isLiked ? 'Liked' : 'Like'}
+                          </motion.button>
+                        </motion.div>
+                      )}
+                    </div>
                   )}
                 </motion.div>
                 
