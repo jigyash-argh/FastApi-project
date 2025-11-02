@@ -334,16 +334,37 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
     </motion.div>
   );
 };
-
 const CreateRecipePage = () => {
   const { chatId } = useParams();
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [favoriteRecipes, setFavoriteRecipes] = useState([]);
   const chatEndRef = useRef(null);
   const chatContainerRef = useRef(null);
 
   const { refreshChatHistory } = useChat();
+
+  // Fetch favorite recipes when component mounts
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      const token = localStorage.getItem('userToken');
+      if (token) {
+        try {
+          const response = await axios.get('http://127.0.0.1:8000/favorites', {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          setFavoriteRecipes(response.data.favorites || []);
+        } catch (error) {
+          console.error("Failed to fetch favorites:", error);
+        }
+      }
+    };
+
+    fetchFavorites();
+  }, []);
 
   // FIXED SCROLL BEHAVIOR
   useEffect(() => {
@@ -361,13 +382,16 @@ const CreateRecipePage = () => {
       try {
         const parsedData = JSON.parse(message.text);
         if (parsedData && typeof parsedData === 'object') {
+          const recipeName = parsedData.title || '';
+          const isLiked = favoriteRecipes.includes(recipeName);
+          
           return {
             ...message,
             isRecipe: true,
             recipe: parsedData,
             youtube_link: parsedData.youtube_link,
             image_url: parsedData.image_url,
-            isLiked: message.isLiked || false,
+            isLiked: isLiked,
             isCooked: message.isCooked || false
           };
         }
@@ -407,7 +431,7 @@ const CreateRecipePage = () => {
     };
 
     fetchMessages();
-  }, [chatId]);
+  }, [chatId, favoriteRecipes]); // Add favoriteRecipes as dependency
 
   const handleLike = async (messageIndex) => {
     const token = localStorage.getItem('userToken');
@@ -435,11 +459,17 @@ const CreateRecipePage = () => {
       updatedMessages[messageIndex].isLiked = response.data.favorited;
       setMessages(updatedMessages);
 
+      // Update favorite recipes list
+      if (response.data.favorited) {
+        setFavoriteRecipes(prev => [...prev, recipeName]);
+      } else {
+        setFavoriteRecipes(prev => prev.filter(name => name !== recipeName));
+      }
+
       console.log(`Recipe ${response.data.favorited ? 'added to' : 'removed from'} favorites:`, recipeName);
 
     } catch (error) {
       console.error("Failed to update favorite status:", error);
-      // Optionally show error message to user
     }
   };
 
@@ -450,11 +480,19 @@ const CreateRecipePage = () => {
     if (!message.isRecipe) return;
 
     try {
+      // Parse calories from the recipe
+      let calories = 0;
+      if (message.recipe.calories_per_serving) {
+        // Extract numbers from string like "350 kcal" or "350"
+        const calorieMatch = message.recipe.calories_per_serving.toString().match(/\d+/);
+        calories = calorieMatch ? parseInt(calorieMatch[0]) : 0;
+      }
+
       // Prepare cooked recipe data
       const recipeData = {
         recipe_name: message.recipe.title || `Recipe-${messageIndex}`,
-        calories: parseInt(message.recipe.calories_per_serving) || 0,
-        servings: message.recipe.servings || 1,
+        calories: calories,
+        servings: parseInt(message.recipe.servings) || 1,
         cooked_at: new Date().toISOString(),
         recipe_data: message.recipe
       };
@@ -479,7 +517,6 @@ const CreateRecipePage = () => {
 
     } catch (error) {
       console.error("Failed to mark recipe as cooked:", error);
-      // Optionally show error message to user
     }
   };
 
@@ -522,6 +559,8 @@ const CreateRecipePage = () => {
       );
 
       const recipeData = response.data;
+      const recipeName = recipeData.title || '';
+      const isLiked = favoriteRecipes.includes(recipeName);
 
       const aiMessage = {
         sender: 'ai',
@@ -529,7 +568,7 @@ const CreateRecipePage = () => {
         recipe: recipeData,
         youtube_link: recipeData.youtube_link,
         image_url: recipeData.image_url,
-        isLiked: false,
+        isLiked: isLiked,
         isCooked: false,
         timestamp: new Date().toISOString()
       };
@@ -541,7 +580,7 @@ const CreateRecipePage = () => {
           await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, { 
             sender: 'ai', 
             text: JSON.stringify(recipeData),
-            isLiked: false,
+            isLiked: isLiked,
             isCooked: false,
             timestamp: new Date().toISOString()
           }, {
