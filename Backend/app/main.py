@@ -272,3 +272,7 @@ async def add_cooked_recipe(recipe_data :CookedRecipeCreate,current_user:dict=De
         }
     else:
         raise HTTPException(status_code=500, detail="Failed to mark recipe as cooked")
+@app.get("/cooked-recipes/today")
+async def get_today_cooked_recipes(current_user:dict=Depends(auth.get_current_user)):
+    cooked_recipes=await db.get_today_cooked_recipes(current_user["username"])
+    return {"cooked_recipes":cooked_recipes}
