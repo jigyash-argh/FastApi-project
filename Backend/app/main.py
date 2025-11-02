@@ -276,3 +276,18 @@ async def add_cooked_recipe(recipe_data :CookedRecipeCreate,current_user:dict=De
 async def get_today_cooked_recipes(current_user:dict=Depends(auth.get_current_user)):
     cooked_recipes=await db.get_today_cooked_recipes(current_user["username"])
     return {"cooked_recipes":cooked_recipes}
+@app.get("/cooked-recipes/recent")
+async def get_recent_cooked_recipes(limit:int=10,current_user:dict=Depends(auth.get_current_user)):
+    cooked_recipe=await db.get_recent_cooked_recipes(current_user["username"],limit)
+    return {"cooked_recipes":cooked_recipe}
+@app.get("/dashboard/stats")
+async def get_dashboard_stats(current_user:dict=Depends(auth.get_current_user)):
+    stats=await db.get_user_dashboard_stats(current_user["username"])
+    return stats
+@app.get("/dashboard/weekly-calories")
+async def get_weekly_calories_data(current_user: dict = Depends(auth.get_current_user)):
+    """
+    Get weekly calorie data for charts
+    """
+    weekly_data = await db.get_weekly_calories(current_user["username"])
+    return {"weekly_data": weekly_data}
