@@ -36,20 +36,46 @@ const Dashboard = () => {
       }
       try {
         setIsLoading(true);
-        const [userResponse, cookedResponse] = await Promise.all([
-          axios.get('http://127.0.0.1:8000/users/me', {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get('http://127.0.0.1:8000/cooked-recipes/today', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-        ]);
         
+        // Fetch user details
+        const userResponse = await axios.get('http://127.0.0.1:8000/users/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         setUserDetails(userResponse.data);
-        setTodayCalories(cookedResponse.data.total_calories || 0);
-        setCookedRecipes(cookedResponse.data.recipes || []);
-        setRecipesTried(cookedResponse.data.total_recipes || 0);
-        setCookingStreak(cookedResponse.data.streak || 0);
+
+        // Fetch dashboard stats which includes cooked recipes
+        try {
+          const statsResponse = await axios.get('http://127.0.0.1:8000/dashboard/stats', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          const stats = statsResponse.data;
+          setTodayCalories(stats.today_calories || 0);
+          setCookedRecipes(stats.today_recipes || []);
+          setRecipesTried(stats.total_recipes || 0);
+          setCookingStreak(stats.streak || 0);
+        } catch (statsError) {
+          console.log("Dashboard stats endpoint not available, using fallback data");
+          // If dashboard stats endpoint fails, try the cooked-recipes endpoint
+          try {
+            const cookedResponse = await axios.get('http://127.0.0.1:8000/cooked-recipes/today', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            setCookedRecipes(cookedResponse.data.recipes || []);
+            setTodayCalories(cookedResponse.data.total_calories || 0);
+            setCookingStreak(cookedResponse.data.streak || 0);
+            setRecipesTried(cookedResponse.data.total_recipes || 0);
+          } catch (cookedError) {
+            console.log("No cooked recipes data available");
+            // Set default values if no data available
+            setTodayCalories(0);
+            setCookedRecipes([]);
+            setRecipesTried(0);
+            setCookingStreak(0);
+          }
+        }
+
       } catch (error) {
         console.error("Failed to fetch data:", error);
         setError("Failed to load dashboard data");
@@ -197,10 +223,35 @@ const Dashboard = () => {
 
   // Format time for cooked recipes
   const formatTime = (timestamp) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    try {
+      return new Date(timestamp).toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch (error) {
+      return "Unknown time";
+    }
+  };
+
+  // Refresh dashboard data
+  const refreshDashboard = async () => {
+    const token = localStorage.getItem('userToken');
+    if (!token) return;
+
+    try {
+      // Fetch updated dashboard stats
+      const statsResponse = await axios.get('http://127.0.0.1:8000/dashboard/stats', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const stats = statsResponse.data;
+      setTodayCalories(stats.today_calories || 0);
+      setCookedRecipes(stats.today_recipes || []);
+      setRecipesTried(stats.total_recipes || 0);
+      setCookingStreak(stats.streak || 0);
+    } catch (error) {
+      console.log("Could not refresh dashboard data");
+    }
   };
 
   if (isLoading && !userDetails) {
@@ -224,13 +275,23 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowAbout(prev => !prev)}
-            className="mt-4 px-6 py-3 bg-indigo-600 rounded-lg hover:bg-indigo-700 text-white font-semibold transition-colors duration-200 flex items-center gap-2"
-          >
-            <UserCircleIcon className="w-5 h-5" />
-            {showAbout ? 'Close Profile' : 'Edit Profile'}
-          </button>
+          <div className="flex gap-3 mt-4">
+            <button
+              onClick={() => setShowAbout(prev => !prev)}
+              className="px-6 py-3 bg-indigo-600 rounded-lg hover:bg-indigo-700 text-white font-semibold transition-colors duration-200 flex items-center gap-2"
+            >
+              <UserCircleIcon className="w-5 h-5" />
+              {showAbout ? 'Close Profile' : 'Edit Profile'}
+            </button>
+            
+            <button
+              onClick={refreshDashboard}
+              className="px-6 py-3 bg-green-600 rounded-lg hover:bg-green-700 text-white font-semibold transition-colors duration-200 flex items-center gap-2"
+            >
+              <ChartBarIcon className="w-5 h-5" />
+              Refresh Data
+            </button>
+          </div>
         </div>
 
         {/* Main Content Container */}
@@ -281,7 +342,7 @@ const Dashboard = () => {
             <div className="mt-6 bg-gray-800 rounded-xl p-6">
               <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <ClockIcon className="w-5 h-5" />
-                Today's Cooked Recipes
+                Today's Cooked Recipes ({cookedRecipes.length})
               </h2>
               <div className="space-y-3">
                 {cookedRecipes.map((recipe, index) => (
@@ -294,7 +355,7 @@ const Dashboard = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-amber-400 font-bold">{recipe.calories} kcal</p>
-                      <p className="text-gray-400 text-xs">per serving</p>
+                      <p className="text-gray-400 text-xs">{recipe.servings || 1} serving(s)</p>
                     </div>
                   </div>
                 ))}
@@ -357,7 +418,7 @@ const Dashboard = () => {
             <div className="bg-gray-800 rounded-xl p-4 text-center">
               <BookOpenIcon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 mx-auto mb-2" />
               <div className="text-lg sm:text-2xl font-bold text-white">{recipesTried}</div>
-              <div className="text-gray-400 text-xs sm:text-sm">Recipes Tried</div>
+              <div className="text-gray-400 text-xs sm:text-sm">Total Recipes</div>
             </div>
           </div>
 

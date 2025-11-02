@@ -473,52 +473,90 @@ const CreateRecipePage = () => {
     }
   };
 
-  const handleCooked = async (messageIndex) => {
-    const token = localStorage.getItem('userToken');
-    const message = messages[messageIndex];
-    
-    if (!message.isRecipe) return;
+const handleCooked = async (messageIndex) => {
+  const token = localStorage.getItem('userToken');
+  const message = messages[messageIndex];
+  
+  if (!message.isRecipe) return;
 
-    try {
-      // Parse calories from the recipe
-      let calories = 0;
-      if (message.recipe.calories_per_serving) {
-        // Extract numbers from string like "350 kcal" or "350"
-        const calorieMatch = message.recipe.calories_per_serving.toString().match(/\d+/);
-        calories = calorieMatch ? parseInt(calorieMatch[0]) : 0;
+  try {
+    // Parse calories from the recipe - handle different formats
+    let calories = 0;
+    if (message.recipe.calories_per_serving) {
+      const calorieText = message.recipe.calories_per_serving.toString();
+      // Extract numbers from string like "350 kcal", "350 calories", or just "350"
+      const calorieMatch = calorieText.match(/\d+/);
+      calories = calorieMatch ? parseInt(calorieMatch[0]) : 0;
+    }
+
+    // Parse servings - handle different formats
+    let servings = 1;
+    if (message.recipe.servings) {
+      const servingsText = message.recipe.servings.toString();
+      const servingsMatch = servingsText.match(/\d+/);
+      servings = servingsMatch ? parseInt(servingsMatch[0]) : 1;
+    }
+
+    // Prepare cooked recipe data matching the backend model
+    const recipeData = {
+      recipe_name: message.recipe.title || `Recipe-${messageIndex}`,
+      calories: calories,
+      servings: servings,
+      cooked_at: new Date().toISOString(),
+      recipe_data: {
+        title: message.recipe.title,
+        description: message.recipe.description,
+        prepTime: message.recipe.prepTime,
+        cookTime: message.recipe.cookTime,
+        servings: message.recipe.servings,
+        calories_per_serving: message.recipe.calories_per_serving,
+        ingredients: message.recipe.ingredients,
+        instructions: message.recipe.instructions,
+        youtube_link: message.recipe.youtube_link,
+        image_url: message.recipe.image_url
       }
+    };
 
-      // Prepare cooked recipe data
-      const recipeData = {
-        recipe_name: message.recipe.title || `Recipe-${messageIndex}`,
-        calories: calories,
-        servings: parseInt(message.recipe.servings) || 1,
-        cooked_at: new Date().toISOString(),
-        recipe_data: message.recipe
-      };
+    console.log("Sending cooked recipe data:", recipeData);
 
-      // Call the cooked recipe API
-      const response = await axios.post(
-        'http://127.0.0.1:8000/cooked-recipe',
-        recipeData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+    // Call the cooked recipe API
+    const response = await axios.post(
+      'http://127.0.0.1:8000/cooked-recipe',
+      recipeData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
-      // Update local state
+    // Update local state only if the API call was successful
+    if (response.data.success) {
       const updatedMessages = [...messages];
       updatedMessages[messageIndex].isCooked = true;
+      updatedMessages[messageIndex].cookedData = response.data.cooked_data;
       setMessages(updatedMessages);
 
       console.log('Recipe marked as cooked:', recipeData.recipe_name);
-
-    } catch (error) {
-      console.error("Failed to mark recipe as cooked:", error);
+      
+      // Show success message to user
+      alert('Recipe marked as cooked! 🎉 Check your dashboard to see your progress.');
     }
-  };
+
+  } catch (error) {
+    console.error("Failed to mark recipe as cooked:", error);
+    
+    // Show specific error messages to user
+    if (error.response?.status === 422) {
+      alert('Invalid recipe data. Please try again.');
+    } else if (error.response?.status === 500) {
+      alert('Server error. Please try again later.');
+    } else {
+      alert('Failed to mark recipe as cooked. Please try again.');
+    }
+  }
+};
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
