@@ -1,49 +1,65 @@
-
 import motor.motor_asyncio 
-from .config import settings  # <-- IMPORT from our new config file
-from datetime import datetime,timedelta
-# This is the main connection to your MongoDB database
-# It now uses the DATABASE_URL from the central settings object
-client = motor.motor_asyncio.AsyncIOMotorClient(settings.DATABASE_URL)
+from .config import settings
+from datetime import datetime, timedelta
+from bson import ObjectId
+import json
 
-# We get a specific database from our MongoDB cluster
+# Custom JSON encoder to handle ObjectId and datetime
+class JSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+# Function to convert MongoDB documents to JSON-serializable format
+def serialize_doc(doc):
+    if not doc:
+        return None
+    if '_id' in doc:
+        doc['id'] = str(doc['_id'])
+        del doc['_id']
+    return doc
+
+def serialize_docs(docs):
+    return [serialize_doc(doc) for doc in docs]
+
+# This is the main connection to your MongoDB database
+client = motor.motor_asyncio.AsyncIOMotorClient(settings.DATABASE_URL)
 database = client.FoodToFeastDB
 
-# We get a specific "collection" where we'll store users
+# We get specific collections
 user_collection = database.get_collection("users")
 history_collection = database.get_collection("history")
-dashboard_collection=database.get_collection("dashboard")
+dashboard_collection = database.get_collection("dashboard")
+
 # Function to get a user from the database by their username
 async def get_user(username: str) -> dict | None:
     user = await user_collection.find_one({"username": username})
-    if user:
-        return user
-    return None
+    return serialize_doc(user)
 
 async def get_chat_history(username: str) -> list:
     history = await history_collection.find_one({"username": username})
     if history:
-        return history["history"]
+        return serialize_doc(history).get("history", [])
     return []
 
 async def create_chat_history(username: str, title: str) -> dict:
     history_item = {"title": title, "messages": []}
     
-    # Use $addToSet with $each to prevent duplicates based on title
     result = await history_collection.update_one(
-        {"username": username, "history.title": {"$ne": title}},  # Only update if title doesn't exist
+        {"username": username, "history.title": {"$ne": title}},
         {"$push": {"history": history_item}},
         upsert=True
     )
     
-    # If no document was modified, it means the title already exists
     if result.modified_count == 0:
-        # Fetch and return the existing chat
         user_doc = await history_collection.find_one({"username": username})
-        for item in user_doc.get("history", []):
-            if item.get("title") == title:
-                return item
-        # This shouldn't happen, but just in case
+        if user_doc:
+            for item in user_doc.get("history", []):
+                if item.get("title") == title:
+                    return serialize_doc(item)
         raise ValueError(f"Chat with title '{title}' already exists")
     
     return history_item
@@ -53,7 +69,7 @@ async def get_chat_by_title(username: str, title: str) -> dict | None:
     if user_history:
         for chat in user_history.get("history", []):
             if chat.get("title") == title:
-                return chat
+                return serialize_doc(chat)
     return None
 
 async def add_message_to_chat(username: str, title: str, message: dict):
@@ -68,53 +84,42 @@ async def delete_chat_history(username: str, titles: list[str]):
         {"$pull": {"history": {"title": {"$in": titles}}}}
     )
 
-#favorites
-# In your db.py file
-
+# Favorites
 async def add_to_favorite(username: str, recipe_name: str):
-    """Add a recipe to user's favorites"""
     return await user_collection.update_one(
         {"username": username},
-        {"$addToSet": {"favorites": recipe_name}}  # Use $addToSet to avoid duplicates
+        {"$addToSet": {"favorites": recipe_name}}
     )
 
 async def remove_from_favorites(username: str, recipe_name: str):
-    """Remove a recipe from user's favorites"""
     return await user_collection.update_one(
         {"username": username},
-        {"$pull": {"favorites": recipe_name}}  # Use $pull to remove from array
+        {"$pull": {"favorites": recipe_name}}
     )
 
 async def get_favorites(username: str):
-    """Get user's favorite recipes"""
     user = await user_collection.find_one({"username": username})
     return user.get("favorites", []) if user else []
 
-#cooked
-async def add_to_cooked(username:str,recipe_name:str):
+# Cooked recipes in user collection (simple array)
+async def add_to_cooked(username: str, recipe_name: str):
     return await user_collection.update_one(
-        {"username":username},
-        {
-            "$addToSet":{"cooked":recipe_name}
-        }
+        {"username": username},
+        {"$addToSet": {"cooked": recipe_name}}
     )
-async def remove_from_cooked(username:str,recipe_name:str):
+
+async def remove_from_cooked(username: str, recipe_name: str):
     return await user_collection.update_one(
-        {"username":username},
-        {"$pull":{"cooked":recipe_name}}
+        {"username": username},
+        {"$pull": {"cooked": recipe_name}}
     )
-async def get_cooked(username:str):
-    user=await user_collection.find_one({"username":username})
-    return user.get("cooked",[]) if user else []
 
-#dashboard
-# DASHBOARD COLLECTION FUNCTIONS - For detailed tracking with calories
+async def get_cooked(username: str):
+    user = await user_collection.find_one({"username": username})
+    return user.get("cooked", []) if user else []
 
+# Dashboard - For detailed tracking with calories
 async def add_cooked_recipe_dashboard(username: str, recipe_data: dict):
-    """
-    Add detailed cooked recipe data to dashboard collection
-    recipe_data should contain: recipe_name, calories, cooked_at, servings, recipe_data
-    """
     cooked_item = {
         "username": username,
         "recipe_name": recipe_data["recipe_name"],
@@ -125,12 +130,11 @@ async def add_cooked_recipe_dashboard(username: str, recipe_data: dict):
         "created_at": datetime.utcnow()
     }
     
-    return await dashboard_collection.insert_one(cooked_item)
+    result = await dashboard_collection.insert_one(cooked_item)
+    cooked_item['id'] = str(result.inserted_id)
+    return cooked_item
 
 async def get_today_cooked_recipes(username: str):
-    """
-    Get all recipes cooked by user today with calorie data
-    """
     today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     
     cooked_recipes = await dashboard_collection.find({
@@ -138,13 +142,9 @@ async def get_today_cooked_recipes(username: str):
         "cooked_at": {"$gte": today_start.isoformat()}
     }).sort("cooked_at", -1).to_list(length=None)
     
-    return cooked_recipes
+    return serialize_docs(cooked_recipes)
 
 async def get_user_dashboard_stats(username: str):
-    """
-    Get comprehensive dashboard statistics for the user
-    Returns: today_calories, today_recipes, total_recipes, streak
-    """
     # Get today's cooked recipes
     today_recipes = await get_today_cooked_recipes(username)
     today_calories = sum(recipe["calories"] for recipe in today_recipes)
@@ -163,9 +163,6 @@ async def get_user_dashboard_stats(username: str):
     }
 
 async def calculate_cooking_streak(username: str):
-    """
-    Calculate user's current cooking streak (consecutive days with cooked recipes)
-    """
     # Get all cooked recipes sorted by date
     all_recipes = await dashboard_collection.find(
         {"username": username}
@@ -177,8 +174,11 @@ async def calculate_cooking_streak(username: str):
     # Get unique dates when user cooked
     dates_cooked = set()
     for recipe in all_recipes:
-        cooked_date = datetime.fromisoformat(recipe["cooked_at"]).date()
-        dates_cooked.add(cooked_date)
+        try:
+            cooked_date = datetime.fromisoformat(recipe["cooked_at"]).date()
+            dates_cooked.add(cooked_date)
+        except (ValueError, KeyError):
+            continue
     
     # Sort dates in descending order
     sorted_dates = sorted(dates_cooked, reverse=True)
@@ -199,9 +199,6 @@ async def calculate_cooking_streak(username: str):
     return streak
 
 async def get_weekly_calories(username: str):
-    """
-    Get weekly calorie data for charts (last 7 days)
-    """
     today = datetime.now().date()
     week_data = []
     
@@ -223,34 +220,28 @@ async def get_weekly_calories(username: str):
         
         week_data.append({
             "date": day.isoformat(),
-            "day_name": day.strftime("%a"),  # Mon, Tue, etc.
+            "day_name": day.strftime("%a"),
             "calories": day_calories,
             "recipes_count": len(day_recipes)
         })
     
-    return week_data[::-1]  # Reverse to get oldest first
+    return week_data[::-1]
 
 async def get_user_health_metrics(username: str):
-    """
-    Get user's health metrics and goals
-    """
     user = await user_collection.find_one({"username": username})
     if not user:
         return None
     
-    return {
+    return serialize_doc({
         "age": user.get("age", 25),
         "goal_calories": user.get("goal_calories", 2200),
         "weight": user.get("weight"),
         "height": user.get("height"),
         "dietary_preferences": user.get("dietary_preferences", []),
         "allergies": user.get("allergies", [])
-    }
+    })
 
 async def update_user_health_metrics(username: str, metrics: dict):
-    """
-    Update user's health metrics
-    """
     update_data = {}
     
     if "age" in metrics:
@@ -275,9 +266,6 @@ async def update_user_health_metrics(username: str, metrics: dict):
     return None
 
 async def get_cooking_insights(username: str):
-    """
-    Get insights about user's cooking habits
-    """
     # Most cooked recipes
     pipeline = [
         {"$match": {"username": username}},
@@ -292,6 +280,7 @@ async def get_cooking_insights(username: str):
     ]
     
     most_cooked = await dashboard_collection.aggregate(pipeline).to_list(length=5)
+    most_cooked = serialize_docs(most_cooked)
     
     # Average calories per meal
     avg_calories_pipeline = [
@@ -313,9 +302,6 @@ async def get_cooking_insights(username: str):
     }
 
 async def delete_cooked_recipe(username: str, recipe_name: str, cooked_at: str):
-    """
-    Delete a cooked recipe entry using recipe_name and cooked_at timestamp
-    """
     return await dashboard_collection.delete_one({
         "username": username,
         "recipe_name": recipe_name,
@@ -323,9 +309,8 @@ async def delete_cooked_recipe(username: str, recipe_name: str, cooked_at: str):
     })
 
 async def get_recent_cooked_recipes(username: str, limit: int = 10):
-    """
-    Get recent cooked recipes for the user
-    """
-    return await dashboard_collection.find({
+    cooked_recipes = await dashboard_collection.find({
         "username": username
     }).sort("cooked_at", -1).limit(limit).to_list(length=limit)
+    
+    return serialize_docs(cooked_recipes)

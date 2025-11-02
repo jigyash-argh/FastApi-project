@@ -64,11 +64,16 @@ class FavoriteRecipe(BaseModel):
 
 # --- Cooked Recipes Models ---
 
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
+from datetime import datetime
+
+# Add this model to your models.py
 class CookedRecipeCreate(BaseModel):
     recipe_name: str
-    calories: int = Field(..., gt=0, description="Calories must be positive")
+    calories: int
+    servings: int = 1
     cooked_at: Optional[str] = None
-    servings: Optional[int] = Field(1, gt=0, description="Servings must be positive")
     recipe_data: Optional[Dict[str, Any]] = None
 
 class CookedRecipeResponse(BaseModel):

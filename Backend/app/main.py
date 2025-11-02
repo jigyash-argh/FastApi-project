@@ -11,7 +11,7 @@ from . import auth, db, chat
 from .models import (
     UserCreate, Token, UserPublic, RecipeRequest, 
     ChatHistoryCreate, ChatHistoryItem, MessageCreate, 
-    ChatHistoryDelete, ChatRequest, UserUpdate,FavoriteRecipe,CookedRecipeResponse,CookedRecipeCreate
+    ChatHistoryDelete, ChatRequest, UserUpdate, FavoriteRecipe, CookedRecipeResponse, CookedRecipeCreate
 )
 
 app = FastAPI(title="Food-to-Feast API")
@@ -64,9 +64,9 @@ async def register_user(user: UserCreate):
         "age": 25,
         "goal_calories": 2000,
         "hashed_pass": hashed_password,
-        "favorites":[],
+        "favorites": [],
         "created_at": datetime.utcnow().isoformat(),
-        "cooked":[],
+        "cooked": [],
     }
 
     # Insert into database
@@ -91,6 +91,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     # If not found by username, try by email
     if not user:
         user = await db.user_collection.find_one({"email": form_data.username})
+        if user:
+            user = db.serialize_doc(user)
     
     if not user or not auth.verify_password(form_data.password, user["hashed_pass"]):
         raise HTTPException(
@@ -104,11 +106,13 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 @app.get("/users/me", response_model=UserPublic)
 async def read_users_me(current_user: dict = Depends(auth.get_current_user)):
+    # Serialize the current_user to remove ObjectId
+    serialized_user = db.serialize_doc(current_user)
     return UserPublic(
-        username=current_user["username"], 
-        email=current_user["email"],
-        age=current_user.get("age", 25),
-        goal_calories=current_user.get("goal_calories", 2000)
+        username=serialized_user["username"], 
+        email=serialized_user["email"],
+        age=serialized_user.get("age", 25),
+        goal_calories=serialized_user.get("goal_calories", 2000)
     )
 
 
@@ -228,12 +232,15 @@ async def update_user_me(user_update: UserUpdate, current_user: dict = Depends(a
     
     # Return updated user
     updated_user = await db.user_collection.find_one({"_id": current_user["_id"]})
+    serialized_user = db.serialize_doc(updated_user)
     return UserPublic(
-        username=updated_user["username"],
-        email=updated_user["email"],
-        age=updated_user.get("age", 25),
-        goal_calories=updated_user.get("goal_calories", 2000)
+        username=serialized_user["username"],
+        email=serialized_user["email"],
+        age=serialized_user.get("age", 25),
+        goal_calories=serialized_user.get("goal_calories", 2000)
     )
+
+
 @app.post("/favorites/{recipe_name}")
 async def toggle_favorite(recipe_name: str, current_user: dict = Depends(auth.get_current_user)):
     """Toggle favorite status for a recipe"""
@@ -247,43 +254,68 @@ async def toggle_favorite(recipe_name: str, current_user: dict = Depends(auth.ge
         # Add to favorites
         await db.add_to_favorite(current_user["username"], recipe_name)
         return {"favorited": True, "message": "Recipe added to favorites"}
+
+
 @app.get("/favorites")
-async def get_favorite(current_user:dict=Depends(auth.get_current_user)):
-    favs=await db.get_favorites(current_user["username"])
+async def get_favorite(current_user: dict = Depends(auth.get_current_user)):
+    favs = await db.get_favorites(current_user["username"])
     return {"favorites": favs}
-#cooked
+
+
+# Cooked recipes endpoints
 @app.post("/cooked-recipe")
-async def add_cooked_recipe(recipe_data :CookedRecipeCreate,current_user:dict=Depends(auth.get_current_user)):
-    cooked_data={
-        "username":current_user["username"],
-        "recipe_name":recipe_data.recipe_name,
-        "calories":recipe_data.calories,
+async def add_cooked_recipe(recipe_data: CookedRecipeCreate, current_user: dict = Depends(auth.get_current_user)):
+    """
+    Add a cooked recipe to dashboard with detailed tracking
+    """
+    cooked_data = {
+        "username": current_user["username"],
+        "recipe_name": recipe_data.recipe_name,
+        "calories": recipe_data.calories,
         "cooked_at": recipe_data.cooked_at or datetime.utcnow().isoformat(),
         "servings": recipe_data.servings or 1,
         "recipe_data": recipe_data.recipe_data or {},
         "created_at": datetime.utcnow()
     }
-    result=await db.add_cooked_recipe_dashboard(current_user["username"],recipe_data)
-    if result.inserted_id:
-        return {
-            "success": True,
-            "message": "Recipe marked as cooked",
-            "cooked_data": cooked_data
-        }
-    else:
-        raise HTTPException(status_code=500, detail="Failed to mark recipe as cooked")
+    
+    result = await db.add_cooked_recipe_dashboard(current_user["username"], cooked_data)
+    
+    return {
+        "success": True,
+        "message": "Recipe marked as cooked",
+        "cooked_data": result
+    }
+
+
 @app.get("/cooked-recipes/today")
-async def get_today_cooked_recipes(current_user:dict=Depends(auth.get_current_user)):
-    cooked_recipes=await db.get_today_cooked_recipes(current_user["username"])
-    return {"cooked_recipes":cooked_recipes}
+async def get_today_cooked_recipes(current_user: dict = Depends(auth.get_current_user)):
+    """
+    Get today's cooked recipes for the current user
+    """
+    cooked_recipes = await db.get_today_cooked_recipes(current_user["username"])
+    total_calories = sum(recipe["calories"] for recipe in cooked_recipes)
+    streak = await db.calculate_cooking_streak(current_user["username"])
+    
+    return {
+        "recipes": cooked_recipes,
+        "total_calories": total_calories,
+        "total_recipes": len(cooked_recipes),
+        "streak": streak
+    }
+
+
 @app.get("/cooked-recipes/recent")
-async def get_recent_cooked_recipes(limit:int=10,current_user:dict=Depends(auth.get_current_user)):
-    cooked_recipe=await db.get_recent_cooked_recipes(current_user["username"],limit)
-    return {"cooked_recipes":cooked_recipe}
+async def get_recent_cooked_recipes(limit: int = 10, current_user: dict = Depends(auth.get_current_user)):
+    cooked_recipes = await db.get_recent_cooked_recipes(current_user["username"], limit)
+    return {"cooked_recipes": cooked_recipes}
+
+
 @app.get("/dashboard/stats")
-async def get_dashboard_stats(current_user:dict=Depends(auth.get_current_user)):
-    stats=await db.get_user_dashboard_stats(current_user["username"])
+async def get_dashboard_stats(current_user: dict = Depends(auth.get_current_user)):
+    stats = await db.get_user_dashboard_stats(current_user["username"])
     return stats
+
+
 @app.get("/dashboard/weekly-calories")
 async def get_weekly_calories_data(current_user: dict = Depends(auth.get_current_user)):
     """
@@ -291,9 +323,11 @@ async def get_weekly_calories_data(current_user: dict = Depends(auth.get_current
     """
     weekly_data = await db.get_weekly_calories(current_user["username"])
     return {"weekly_data": weekly_data}
+
+
 @app.delete("/cooked-recipes/{recipe_name}")
-async def delete_cooked_recipe(recipe_name:str,cooked_at:str,current_user:dict=Depends(auth.get_current_user)):
-    result=await db.delete_cooked_recipe(current_user["username"],recipe_name,cooked_at)
+async def delete_cooked_recipe(recipe_name: str, cooked_at: str, current_user: dict = Depends(auth.get_current_user)):
+    result = await db.delete_cooked_recipe(current_user["username"], recipe_name, cooked_at)
     if result.deleted_count > 0:
         return {"success": True, "message": "Cooked recipe deleted successfully"}
     else:
