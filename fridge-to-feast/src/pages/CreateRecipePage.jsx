@@ -44,7 +44,7 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
   
   if (typeof recipe === 'string') {
     try {
-      parsedRecipe = JSON.parse(recipe);
+      parsedRecipe = JSON.parse(recipe); 
     } catch (error) {
       parsedRecipe = recipe;
     }
