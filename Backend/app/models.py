@@ -1,144 +1,74 @@
 # app/models.py
-from pydantic import BaseModel, EmailStr, Field, validator
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, EmailStr, Field
+from typing import List, Optional, Any
 from datetime import datetime
 
-# --- User Models ---
-
-class UserCreate(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
-    email: EmailStr
-    password: str = Field(..., min_length=6)
-
-
-class UserPublic(BaseModel):
+class UserBase(BaseModel):
     username: str
     email: EmailStr
-    age: Optional[int] = None
-    goal_calories: Optional[int] = None
+
+class UserCreate(UserBase):
+    password: str = Field(min_length=6)
+    age: Optional[int] = 25
+    goal_calories: Optional[int] = 2000
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
-    email: Optional[str] = None  # Changed from EmailStr to str
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
     age: Optional[int] = None
     goal_calories: Optional[int] = None
-    password: Optional[str] = None
 
-    @validator('email')
-    def validate_email_if_provided(cls, v):
-        if v is not None and v != "":
-            # Basic email validation when email is provided
-            if '@' not in v:
-                raise ValueError('Invalid email format')
-        return v
-
-class UserInDB(BaseModel):
-    username: str
-    email: EmailStr
-    hashed_pass: str
-
-# --- Token Model ---
+class UserPublic(UserBase):
+    age: Optional[int]
+    goal_calories: Optional[int]
+    class Config:
+        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
-# --- Recipe Generator Model ---
+class MessageCreate(BaseModel):
+    role: str
+    content: str
 
-class RecipeRequest(BaseModel):
-    ingredients: str  # A string of comma-separated ingredients
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "ingredients": "onions, tomatoes, leftover chicken, rice"
-            }
-        }
-        
-class FavoriteRecipe(BaseModel):
-    recipe_id: str
+class ChatHistoryItem(BaseModel):
+    title: str
+    messages: List[MessageCreate]
+
+class ChatHistoryCreate(BaseModel):
+    title: str
+
+class ChatHistoryDelete(BaseModel):
+    titles: List[str]
+
+class ChatRequest(BaseModel):
+    message: str
+
+class RecipeResponse(BaseModel):
+    # Define what your AI chat response looks like
     recipe_name: str
-    ingredients: Optional[str] = None
-    instructions: Optional[List[str]] = None
-    image_url: Optional[str] = None
+    ingredients: List[str]
+    instructions: List[str]
+    video_url: Optional[str]
 
-# --- Cooked Recipes Models ---
-
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
-from datetime import datetime
-
-# Add this model to your models.py
 class CookedRecipeCreate(BaseModel):
     recipe_name: str
     calories: int
-    servings: int = 1
     cooked_at: Optional[str] = None
-    recipe_data: Optional[Dict[str, Any]] = None
+    servings: Optional[int] = 1
+    recipe_data: Optional[dict] = {}
 
-class CookedRecipeResponse(BaseModel):
-    recipe_name: str
-    calories: int
-    cooked_at: str
-    servings: int
+class CookedRecipeResponse(CookedRecipeCreate):
+    id: str
+    username: str
+    created_at: datetime
 
-class TodayCookedRecipesResponse(BaseModel):
-    recipes: List[CookedRecipeResponse]
-    total_calories: int
-    total_recipes: int
-
-class DashboardStats(BaseModel):
-    today_calories: int
-    today_recipes: List[CookedRecipeResponse]
-    total_recipes: int
-    streak: int
-
-class WeeklyCalories(BaseModel):
-    date: str
-    day_name: str
-    calories: int
-    recipes_count: int
-
-class WeeklyCaloriesResponse(BaseModel):
-    weekly_data: List[WeeklyCalories]
-
-class CookingInsights(BaseModel):
-    most_cooked_recipes: List[Dict[str, Any]]
-    average_calories_per_meal: float
-    total_meals_cooked: int
-
-class HealthMetrics(BaseModel):
+class HealthMetricsUpdate(BaseModel):
     age: Optional[int] = None
     goal_calories: Optional[int] = None
     weight: Optional[float] = None
     height: Optional[float] = None
     dietary_preferences: Optional[List[str]] = None
     allergies: Optional[List[str]] = None
-
-# --- Chat Models ---
-
-class ChatRequest(BaseModel):
-    message: str
-
-class ChatResponse(BaseModel):
-    message: str
-
-# --- Chat History Models ---
-
-class Message(BaseModel):
-    sender: str
-    text: str
-
-class ChatHistoryItem(BaseModel):
-    title: str
-    messages: List[Message]
-
-class ChatHistoryCreate(BaseModel):
-    title: str
-
-class MessageCreate(BaseModel):
-    sender: str
-    text: str
-
-class ChatHistoryDelete(BaseModel):
-    titles: List[str]
