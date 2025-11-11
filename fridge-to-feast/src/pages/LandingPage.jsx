@@ -2,12 +2,12 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Star } from 'lucide-react';
-import Navbar from '../components/Navbar'; // Corrected path
-import heroImage from '../assets/ChefAsset.jpg'; // Corrected path
+import Navbar from '../components/Navbar'; 
+import heroImage from '../assets/ChefAsset.jpg'; 
 import QuickAdd from './QuickAdd';
 
 const LandingPage = () => {
-  // Animation variants for Framer Motion
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {

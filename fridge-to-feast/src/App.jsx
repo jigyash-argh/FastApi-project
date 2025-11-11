@@ -35,7 +35,7 @@ const AppContent = () => {
           <Route path="/dashboard" element={<Dashboard/>} />
           <Route path="/chat/:chatId" element={<CreateRecipePage />} />
           <Route path="/favorites" element={<FavoritesPage/>
-} />
+} /> 
         </Route>
       </Routes>
     </>

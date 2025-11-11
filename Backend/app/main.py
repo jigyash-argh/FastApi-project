@@ -16,10 +16,10 @@ app.add_middleware(
 )
 
 # --- Include Routers ---
-app.include_router(auth.router, prefix="/api/v1", tags=["Authentication & Users"])
-app.include_router(recipes.router, prefix="/api/v1", tags=["Recipes & Chat"])
-app.include_router(history.router, prefix="/api/v1", tags=["Chat History"])
-app.include_router(dashboard.router, prefix="/api/v1", tags=["User Dashboard"])
+app.include_router(auth.router, tags=["Authentication & Users"])
+app.include_router(recipes.router, tags=["Recipes & Chat"])
+app.include_router(history.router, tags=["Chat History"])
+app.include_router(dashboard.router, tags=["User Dashboard"])
 
 @app.get("/")
 def read_root():

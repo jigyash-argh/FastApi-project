@@ -75,11 +75,30 @@ async def get_favorites(username: str):
     return user.get("favorites", []) if user else []
 
 # --- History Collection ---
+# app/db.py
+
 async def get_chat_history(username: str) -> list:
-    history = await history_collection.find_one({"username": username})
-    if history:
-        return serialize_doc(history).get("history", [])
-    return []
+    history_doc = await history_collection.find_one({"username": username})
+    
+    if not history_doc or "history" not in history_doc:
+        return []
+
+    # --- THIS IS THE CRITICAL FIX ---
+    transformed_history = []
+    for chat_item in history_doc.get("history", []):
+        transformed_messages = []
+        for message in chat_item.get("messages", []):
+            # Rename 'sender' to 'role' and 'text' to 'content'
+            transformed_messages.append({
+                "role": message.get("sender"),
+                "content": message.get("text")
+            })
+        
+        chat_item["messages"] = transformed_messages
+        transformed_history.append(chat_item)
+        
+    # We serialize the entire list of chat histories
+    return serialize_docs(transformed_history)
 
 async def create_chat_history(username: str, title: str) -> dict:
     history_item = {"title": title, "messages": [], "created_at": datetime.utcnow()}
@@ -95,14 +114,35 @@ async def create_chat_history(username: str, title: str) -> dict:
     
     return history_item
 
+# app/db.py
+
 async def get_chat_by_title(username: str, title: str) -> dict | None:
     user_history = await history_collection.find_one(
         {"username": username, "history.title": title},
         {"history.$": 1} # Project only the matching chat
     )
-    if user_history and "history" in user_history:
-        return serialize_doc(user_history["history"][0])
-    return None
+    
+    if not user_history or "history" not in user_history:
+        return None
+
+    # --- THIS IS THE FIX ---
+    # Get the raw chat item from the projected array
+    chat_item = user_history["history"][0]
+    
+    transformed_messages = []
+    for message in chat_item.get("messages", []):
+        # Rename 'sender' to 'role' and 'text' to 'content'
+        transformed_messages.append({
+            "role": message.get("sender"),
+            "content": message.get("text")
+        })
+    
+    # Overwrite the old messages list with the new, transformed one
+    chat_item["messages"] = transformed_messages
+    # --- END OF FIX ---
+    
+    # Return the fully transformed and serialized chat item
+    return serialize_doc(chat_item)
 
 async def add_message_to_chat(username: str, title: str, message: dict):
     return await history_collection.update_one(

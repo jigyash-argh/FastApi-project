@@ -334,6 +334,7 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
     </motion.div>
   );
 };
+
 const CreateRecipePage = () => {
   const { chatId } = useParams();
   const [messages, setMessages] = useState([]);
@@ -380,7 +381,7 @@ const CreateRecipePage = () => {
   const parseMessageFromHistory = (message) => {
     if (message.sender === 'ai') {
       try {
-        const parsedData = JSON.parse(message.text);
+        const parsedData = JSON.parse(message.text); // This uses 'text' which is correct for local state
         if (parsedData && typeof parsedData === 'object') {
           const recipeName = parsedData.title || '';
           const isLiked = favoriteRecipes.includes(recipeName);
@@ -414,7 +415,14 @@ const CreateRecipePage = () => {
               },
             });
             
-            const parsedMessages = response.data.messages.map(parseMessageFromHistory);
+            // --- FIX 1: Map API {role, content} to local state {sender, text} ---
+            const apiMessages = response.data.messages.map(msg => ({
+              sender: msg.role,
+              text: msg.content
+            }));
+            // --- END OF FIX ---
+            
+            const parsedMessages = apiMessages.map(parseMessageFromHistory);
             setMessages(parsedMessages);
           } catch (error) {
             console.error("Failed to fetch messages:", error);
@@ -576,11 +584,15 @@ const handleCooked = async (messageIndex) => {
     
     if (token && chatId) {
       try {
-        await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, userMessage, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        // --- FIX 2: Send API {role, content} ---
+        await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, 
+          { role: 'user', content: inputValue }, 
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
       } catch (error) {
         console.error("Failed to save user message:", error);
       }
@@ -615,17 +627,15 @@ const handleCooked = async (messageIndex) => {
 
       if (token && chatId) {
         try {
-          await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, { 
-            sender: 'ai', 
-            text: JSON.stringify(recipeData),
-            isLiked: isLiked,
-            isCooked: false,
-            timestamp: new Date().toISOString()
-          }, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          // --- FIX 3: Send API {role, content} ---
+          await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, 
+            { role: 'ai', content: JSON.stringify(recipeData) }, 
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
         } catch (error) {
           console.error("Failed to save AI message:", error);
         }
@@ -822,10 +832,10 @@ const handleCooked = async (messageIndex) => {
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Tell me what ingredients you have... 🥕 🍗 🍚"
               className="w-full pl-6 pr-20 py-4 rounded-2xl bg-white text-gray-800
-                         border-2 border-gray-300/50 placeholder-gray-500 text-lg
-                         focus:outline-none focus:border-emerald-500/50 focus:bg-white
-                         focus:ring-4 focus:ring-emerald-500/20
-                         transition-all duration-300 shadow-lg"
+                           border-2 border-gray-300/50 placeholder-gray-500 text-lg
+                           focus:outline-none focus:border-emerald-500/50 focus:bg-white
+                           focus:ring-4 focus:ring-emerald-500/20
+                           transition-all duration-300 shadow-lg"
               disabled={isLoading}
               whileFocus={{ scale: 1.02 }}
             />
@@ -833,8 +843,8 @@ const handleCooked = async (messageIndex) => {
               type="submit"
               disabled={isLoading || !inputValue.trim()}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-white
-                         disabled:from-gray-400 disabled:to-gray-500 disabled:scale-100
-                         transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-emerald-500/30 shadow-lg"
+                           disabled:from-gray-400 disabled:to-gray-500 disabled:scale-100
+                           transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-emerald-500/30 shadow-lg"
               whileHover={{ scale: isLoading ? 1 : 1.1 }}
               whileTap={{ scale: 0.9 }}
               animate={isLoading ? { rotate: 360 } : {}}
