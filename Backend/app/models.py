@@ -47,11 +47,12 @@ class ChatRequest(BaseModel):
     message: str
 
 class RecipeResponse(BaseModel):
-    # Define what your AI chat response looks like
+
     recipe_name: str
-    ingredients: List[str]
     instructions: List[str]
+    ingredients: List[str]
     video_url: Optional[str]
+    image_url: Optional[str]
 
 class CookedRecipeCreate(BaseModel):
     recipe_name: str

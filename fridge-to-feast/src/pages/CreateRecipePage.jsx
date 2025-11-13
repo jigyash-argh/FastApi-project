@@ -38,6 +38,30 @@ const LoadingIndicator = () => (
   </motion.div>
 );
 
+// Helper function to transform backend recipe to frontend format
+const transformRecipeFromBackend = (backendRecipe) => {
+  if (!backendRecipe) return null;
+  
+  // If it's already in the correct format, return as is
+  if (backendRecipe.title && backendRecipe.ingredients && backendRecipe.instructions) {
+    return backendRecipe;
+  }
+  
+  // Transform from backend format to frontend format
+  return {
+    title: backendRecipe.recipe_name || 'Generated Recipe',
+    description: 'A delicious recipe generated just for you',
+    prepTime: '15 mins', // Default values since backend doesn't provide these
+    cookTime: '30 mins',
+    servings: '4',
+    calories_per_serving: 'N/A',
+    ingredients: backendRecipe.ingredients || [],
+    instructions: backendRecipe.instructions || [],
+    youtube_link: backendRecipe.video_url,
+    image_url: backendRecipe.image_url
+  };
+};
+
 // Recipe Display Component
 const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLiked = false, isCooked = false }) => {
   let parsedRecipe = recipe;
@@ -50,7 +74,9 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
     }
   }
 
-  const isStructuredRecipe = parsedRecipe && typeof parsedRecipe === 'object' && parsedRecipe.title;
+  // Transform recipe from backend format
+  const transformedRecipe = transformRecipeFromBackend(parsedRecipe);
+  const isStructuredRecipe = transformedRecipe && typeof transformedRecipe === 'object' && transformedRecipe.ingredients;
 
   if (!isStructuredRecipe) {
     return (
@@ -152,10 +178,10 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
           </div>
           <div>
             <h3 className="text-2xl font-bold text-gray-900 font-display bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-              {parsedRecipe.title}
+              {transformedRecipe.title}
             </h3>
-            {parsedRecipe.description && (
-              <p className="text-gray-600 mt-1 text-sm">{parsedRecipe.description}</p>
+            {transformedRecipe.description && (
+              <p className="text-gray-600 mt-1 text-sm">{transformedRecipe.description}</p>
             )}
           </div>
         </div>
@@ -171,29 +197,29 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
         <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
           <Clock className="h-6 w-6 text-blue-600 mx-auto mb-2" />
           <div className="text-sm text-blue-800 font-semibold">Prep Time</div>
-          <div className="text-lg font-bold text-blue-900">{parsedRecipe.prepTime}</div>
+          <div className="text-lg font-bold text-blue-900">{transformedRecipe.prepTime}</div>
         </div>
         <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border border-orange-200">
           <Flame className="h-6 w-6 text-orange-600 mx-auto mb-2" />
           <div className="text-sm text-orange-800 font-semibold">Cook Time</div>
-          <div className="text-lg font-bold text-orange-900">{parsedRecipe.cookTime}</div>
+          <div className="text-lg font-bold text-orange-900">{transformedRecipe.cookTime}</div>
         </div>
         <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200">
           <Users className="h-6 w-6 text-emerald-600 mx-auto mb-2" />
           <div className="text-sm text-emerald-800 font-semibold">Servings</div>
-          <div className="text-lg font-bold text-emerald-900">{parsedRecipe.servings}</div>
+          <div className="text-lg font-bold text-emerald-900">{transformedRecipe.servings}</div>
         </div>
         <div className="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-xl border border-red-200">
           <Flame className="h-6 w-6 text-red-600 mx-auto mb-2" />
           <div className="text-sm text-red-800 font-semibold">Calories</div>
           <div className="text-lg font-bold text-red-900">
-            {parsedRecipe.calories_per_serving || 'N/A'}
+            {transformedRecipe.calories_per_serving || 'N/A'}
           </div>
         </div>
       </motion.div>
 
       {/* Ingredients */}
-      {parsedRecipe.ingredients && parsedRecipe.ingredients.length > 0 && (
+      {transformedRecipe.ingredients && transformedRecipe.ingredients.length > 0 && (
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -207,7 +233,7 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
           </h4>
           <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-2xl border border-purple-200">
             <ul className="grid gap-3">
-              {parsedRecipe.ingredients.map((ingredient, index) => (
+              {transformedRecipe.ingredients.map((ingredient, index) => (
                 <motion.li 
                   key={index} 
                   className="flex items-center gap-3 text-gray-700 group"
@@ -227,7 +253,7 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
       )}
 
       {/* Instructions */}
-      {parsedRecipe.instructions && parsedRecipe.instructions.length > 0 && (
+      {transformedRecipe.instructions && transformedRecipe.instructions.length > 0 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -240,7 +266,7 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
             Instructions
           </h4>
           <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-2xl border border-amber-200 space-y-4">
-            {parsedRecipe.instructions.map((step, index) => (
+            {transformedRecipe.instructions.map((step, index) => (
               <motion.div 
                 key={index}
                 className="flex gap-4 items-start group"
@@ -381,16 +407,16 @@ const CreateRecipePage = () => {
   const parseMessageFromHistory = (message) => {
     if (message.sender === 'ai') {
       try {
-        const parsedData = JSON.parse(message.text); // This uses 'text' which is correct for local state
+        const parsedData = JSON.parse(message.text);
         if (parsedData && typeof parsedData === 'object') {
-          const recipeName = parsedData.title || '';
+          const recipeName = parsedData.recipe_name || parsedData.title || '';
           const isLiked = favoriteRecipes.includes(recipeName);
           
           return {
             ...message,
             isRecipe: true,
             recipe: parsedData,
-            youtube_link: parsedData.youtube_link,
+            youtube_link: parsedData.video_url || parsedData.youtube_link,
             image_url: parsedData.image_url,
             isLiked: isLiked,
             isCooked: message.isCooked || false
@@ -415,12 +441,11 @@ const CreateRecipePage = () => {
               },
             });
             
-            // --- FIX 1: Map API {role, content} to local state {sender, text} ---
+            // Map API {role, content} to local state {sender, text}
             const apiMessages = response.data.messages.map(msg => ({
               sender: msg.role,
               text: msg.content
             }));
-            // --- END OF FIX ---
             
             const parsedMessages = apiMessages.map(parseMessageFromHistory);
             setMessages(parsedMessages);
@@ -439,7 +464,7 @@ const CreateRecipePage = () => {
     };
 
     fetchMessages();
-  }, [chatId, favoriteRecipes]); // Add favoriteRecipes as dependency
+  }, [chatId, favoriteRecipes]);
 
   const handleLike = async (messageIndex) => {
     const token = localStorage.getItem('userToken');
@@ -448,8 +473,8 @@ const CreateRecipePage = () => {
     if (!message.isRecipe) return;
 
     try {
-      // Get recipe name from the recipe data
-      const recipeName = message.recipe.title || `Recipe-${messageIndex}`;
+      // Get recipe name from the recipe data - handle both backend and frontend formats
+      const recipeName = message.recipe.recipe_name || message.recipe.title || `Recipe-${messageIndex}`;
       
       // Call the favorites API
       const response = await axios.post(
@@ -481,90 +506,65 @@ const CreateRecipePage = () => {
     }
   };
 
-const handleCooked = async (messageIndex) => {
-  const token = localStorage.getItem('userToken');
-  const message = messages[messageIndex];
-  
-  if (!message.isRecipe) return;
-
-  try {
-    // Parse calories from the recipe - handle different formats
-    let calories = 0;
-    if (message.recipe.calories_per_serving) {
-      const calorieText = message.recipe.calories_per_serving.toString();
-      // Extract numbers from string like "350 kcal", "350 calories", or just "350"
-      const calorieMatch = calorieText.match(/\d+/);
-      calories = calorieMatch ? parseInt(calorieMatch[0]) : 0;
-    }
-
-    // Parse servings - handle different formats
-    let servings = 1;
-    if (message.recipe.servings) {
-      const servingsText = message.recipe.servings.toString();
-      const servingsMatch = servingsText.match(/\d+/);
-      servings = servingsMatch ? parseInt(servingsMatch[0]) : 1;
-    }
-
-    // Prepare cooked recipe data matching the backend model
-    const recipeData = {
-      recipe_name: message.recipe.title || `Recipe-${messageIndex}`,
-      calories: calories,
-      servings: servings,
-      cooked_at: new Date().toISOString(),
-      recipe_data: {
-        title: message.recipe.title,
-        description: message.recipe.description,
-        prepTime: message.recipe.prepTime,
-        cookTime: message.recipe.cookTime,
-        servings: message.recipe.servings,
-        calories_per_serving: message.recipe.calories_per_serving,
-        ingredients: message.recipe.ingredients,
-        instructions: message.recipe.instructions,
-        youtube_link: message.recipe.youtube_link,
-        image_url: message.recipe.image_url
-      }
-    };
-
-    console.log("Sending cooked recipe data:", recipeData);
-
-    // Call the cooked recipe API
-    const response = await axios.post(
-      'http://127.0.0.1:8000/cooked-recipe',
-      recipeData,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    // Update local state only if the API call was successful
-    if (response.data.success) {
-      const updatedMessages = [...messages];
-      updatedMessages[messageIndex].isCooked = true;
-      updatedMessages[messageIndex].cookedData = response.data.cooked_data;
-      setMessages(updatedMessages);
-
-      console.log('Recipe marked as cooked:', recipeData.recipe_name);
-      
-      // Show success message to user
-      alert('Recipe marked as cooked! 🎉 Check your dashboard to see your progress.');
-    }
-
-  } catch (error) {
-    console.error("Failed to mark recipe as cooked:", error);
+  const handleCooked = async (messageIndex) => {
+    const token = localStorage.getItem('userToken');
+    const message = messages[messageIndex];
     
-    // Show specific error messages to user
-    if (error.response?.status === 422) {
-      alert('Invalid recipe data. Please try again.');
-    } else if (error.response?.status === 500) {
-      alert('Server error. Please try again later.');
-    } else {
-      alert('Failed to mark recipe as cooked. Please try again.');
+    if (!message.isRecipe) return;
+
+    try {
+      // Get recipe name - handle both backend and frontend formats
+      const recipeName = message.recipe.recipe_name || message.recipe.title || `Recipe-${messageIndex}`;
+      
+      // Prepare cooked recipe data matching the backend model
+      const recipeData = {
+        recipe_name: recipeName,
+        calories: 0, // Default since backend doesn't provide calories
+        servings: 4, // Default servings
+        cooked_at: new Date().toISOString(),
+        recipe_data: message.recipe // Store the entire recipe data
+      };
+
+      console.log("Sending cooked recipe data:", recipeData);
+
+      // Call the cooked recipe API
+      const response = await axios.post(
+        'http://127.0.0.1:8000/cooked-recipe',
+        recipeData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      // Update local state only if the API call was successful
+      if (response.data.success) {
+        const updatedMessages = [...messages];
+        updatedMessages[messageIndex].isCooked = true;
+        updatedMessages[messageIndex].cookedData = response.data.cooked_data;
+        setMessages(updatedMessages);
+
+        console.log('Recipe marked as cooked:', recipeName);
+        
+        // Show success message to user
+        alert('Recipe marked as cooked! 🎉 Check your dashboard to see your progress.');
+      }
+
+    } catch (error) {
+      console.error("Failed to mark recipe as cooked:", error);
+      
+      // Show specific error messages to user
+      if (error.response?.status === 422) {
+        alert('Invalid recipe data. Please try again.');
+      } else if (error.response?.status === 500) {
+        alert('Server error. Please try again later.');
+      } else {
+        alert('Failed to mark recipe as cooked. Please try again.');
+      }
     }
-  }
-};
+  };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -584,7 +584,6 @@ const handleCooked = async (messageIndex) => {
     
     if (token && chatId) {
       try {
-        // --- FIX 2: Send API {role, content} ---
         await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, 
           { role: 'user', content: inputValue }, 
           {
@@ -609,14 +608,14 @@ const handleCooked = async (messageIndex) => {
       );
 
       const recipeData = response.data;
-      const recipeName = recipeData.title || '';
+      const recipeName = recipeData.recipe_name || recipeData.title || '';
       const isLiked = favoriteRecipes.includes(recipeName);
 
       const aiMessage = {
         sender: 'ai',
         isRecipe: true,
         recipe: recipeData,
-        youtube_link: recipeData.youtube_link,
+        youtube_link: recipeData.video_url || recipeData.youtube_link,
         image_url: recipeData.image_url,
         isLiked: isLiked,
         isCooked: false,
@@ -627,7 +626,6 @@ const handleCooked = async (messageIndex) => {
 
       if (token && chatId) {
         try {
-          // --- FIX 3: Send API {role, content} ---
           await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, 
             { role: 'ai', content: JSON.stringify(recipeData) }, 
             {
@@ -697,7 +695,7 @@ const handleCooked = async (messageIndex) => {
           </Link>
         </motion.header>
 
-        {/* Chat Area - FIXED: Proper scroll container */}
+        {/* Chat Area */}
         <main 
           ref={chatContainerRef}
           className="flex-1 overflow-y-auto p-6 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-0"
@@ -818,7 +816,7 @@ const handleCooked = async (messageIndex) => {
           <div ref={chatEndRef} />
         </main>
 
-        {/* Input Form - FIXED: Stays at bottom */}
+        {/* Input Form */}
         <motion.footer 
           className="p-6 flex-shrink-0 bg-transparent backdrop-blur-sm border-t border-gray-200/50"
           initial={{ y: 20, opacity: 0 }}

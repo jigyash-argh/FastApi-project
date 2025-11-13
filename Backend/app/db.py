@@ -12,7 +12,7 @@ history_collection = database.get_collection("history")
 dashboard_collection = database.get_collection("dashboard")
 
 # --- Serializers ---
-def serialize_doc(doc):
+def serialize_doc(doc): 
     """Converts a MongoDB doc to a JSON-serializable dict."""
     if not doc:
         return None
@@ -90,8 +90,8 @@ async def get_chat_history(username: str) -> list:
         for message in chat_item.get("messages", []):
             # Rename 'sender' to 'role' and 'text' to 'content'
             transformed_messages.append({
-                "role": message.get("sender"),
-                "content": message.get("text")
+                "role": message.get("sender",""),
+                "content": message.get("text","")
             })
         
         chat_item["messages"] = transformed_messages
@@ -133,8 +133,8 @@ async def get_chat_by_title(username: str, title: str) -> dict | None:
     for message in chat_item.get("messages", []):
         # Rename 'sender' to 'role' and 'text' to 'content'
         transformed_messages.append({
-            "role": message.get("sender"),
-            "content": message.get("text")
+            "role": message.get("sender",""),
+            "content": message.get("text","")
         })
     
     # Overwrite the old messages list with the new, transformed one
