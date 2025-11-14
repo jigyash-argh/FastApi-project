@@ -2,7 +2,7 @@ import { useChat } from '../contexts/ChatContext';
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Users, UtensilsCrossed, Clock, Flame, ChefHat, Zap, Heart, CheckCircle } from 'lucide-react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 // KnifeFork icon component
@@ -51,7 +51,7 @@ const transformRecipeFromBackend = (backendRecipe) => {
   return {
     title: backendRecipe.recipe_name || 'Generated Recipe',
     description: 'A delicious recipe generated just for you',
-    prepTime: '15 mins', // Default values since backend doesn't provide these
+    prepTime: '15 mins',
     cookTime: '30 mins',
     servings: '4',
     calories_per_serving: 'N/A',
@@ -98,7 +98,6 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
           </pre>
         </div>
         
-        {/* Action Buttons for non-structured recipes */}
         <motion.div 
           className="flex gap-3 mt-4"
           initial={{ opacity: 0 }}
@@ -170,7 +169,6 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Recipe Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-lg shadow-lg">
@@ -187,7 +185,6 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
         </div>
       </div>
 
-      {/* Recipe Stats */}
       <motion.div 
         className="grid grid-cols-2 lg:grid-cols-4 gap-4"
         initial={{ opacity: 0 }}
@@ -218,7 +215,6 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
         </div>
       </motion.div>
 
-      {/* Ingredients */}
       {transformedRecipe.ingredients && transformedRecipe.ingredients.length > 0 && (
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -252,7 +248,6 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
         </motion.div>
       )}
 
-      {/* Instructions */}
       {transformedRecipe.instructions && transformedRecipe.instructions.length > 0 && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
@@ -286,7 +281,6 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
         </motion.div>
       )}
 
-      {/* Action Buttons */}
       <motion.div 
         className="flex gap-4 flex-wrap"
         initial={{ opacity: 0, y: 10 }}
@@ -322,7 +316,6 @@ const RecipeDisplay = ({ recipe, youtube_link, image_url, onLike, onCooked, isLi
         </motion.button>
       </motion.div>
 
-      {/* Image and YouTube Link */}
       <motion.div
         className="flex flex-col sm:flex-row gap-4"
         initial={{ opacity: 0, y: 20 }}
@@ -367,8 +360,10 @@ const CreateRecipePage = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [favoriteRecipes, setFavoriteRecipes] = useState([]);
+  const [currentChatTitle, setCurrentChatTitle] = useState('');
   const chatEndRef = useRef(null);
   const chatContainerRef = useRef(null);
+  const navigate = useNavigate();
 
   const { refreshChatHistory } = useChat();
 
@@ -403,33 +398,46 @@ const CreateRecipePage = () => {
     }
   }, [messages, isLoading]);
 
-  // Parse messages from history to handle JSON strings
-  const parseMessageFromHistory = (message) => {
-    if (message.sender === 'ai') {
-      try {
-        const parsedData = JSON.parse(message.text);
-        if (parsedData && typeof parsedData === 'object') {
-          const recipeName = parsedData.recipe_name || parsedData.title || '';
-          const isLiked = favoriteRecipes.includes(recipeName);
-          
+  // FIXED: Move parseMessageFromHistory inside useEffect to avoid stale closure
+  useEffect(() => {
+    const parseMessageFromHistory = (message) => {
+      if (message.sender === 'ai') {
+        try {
+          // Check if the text is a JSON string that needs parsing
+          if (typeof message.text === 'string' && message.text.trim().startsWith('{')) {
+            const parsedData = JSON.parse(message.text);
+            if (parsedData && typeof parsedData === 'object') {
+              const recipeName = parsedData.recipe_name || parsedData.title || '';
+              const isLiked = favoriteRecipes.includes(recipeName);
+              
+              return {
+                ...message,
+                isRecipe: true,
+                recipe: parsedData,
+                youtube_link: parsedData.video_url || parsedData.youtube_link,
+                image_url: parsedData.image_url,
+                isLiked: isLiked,
+                isCooked: message.isCooked || false
+              };
+            }
+          }
+          // If it's not a JSON string or parsing fails, return as regular message
           return {
             ...message,
-            isRecipe: true,
-            recipe: parsedData,
-            youtube_link: parsedData.video_url || parsedData.youtube_link,
-            image_url: parsedData.image_url,
-            isLiked: isLiked,
-            isCooked: message.isCooked || false
+            isRecipe: false
+          };
+        } catch (error) {
+          console.error("Failed to parse AI message:", error);
+          // Return as regular message if parsing fails
+          return {
+            ...message,
+            isRecipe: false
           };
         }
-      } catch (error) {
-        return message;
       }
-    }
-    return message;
-  };
+      return message;
+    };
 
-  useEffect(() => {
     const fetchMessages = async () => {
       if (chatId) {
         const token = localStorage.getItem('userToken');
@@ -442,29 +450,37 @@ const CreateRecipePage = () => {
             });
             
             // Map API {role, content} to local state {sender, text}
-            const apiMessages = response.data.messages.map(msg => ({
+            const apiMessages = response.data.messages?.map(msg => ({
               sender: msg.role,
               text: msg.content
-            }));
+            })) || [];
             
             const parsedMessages = apiMessages.map(parseMessageFromHistory);
             setMessages(parsedMessages);
+            setCurrentChatTitle(response.data.title || chatId);
           } catch (error) {
             console.error("Failed to fetch messages:", error);
+            // If chat not found, redirect to new chat
+            if (error.response?.status === 404) {
+              navigate('/create-recipe');
+            }
           }
         }
       } else {
+        // New chat - initialize with welcome message
         setMessages([
           {
             sender: 'ai',
             text: "Welcome! 🍳 What ingredients do you have in your fridge today? List them out and I'll whip up a delicious recipe for you!",
+            timestamp: new Date().toISOString()
           },
         ]);
+        setCurrentChatTitle('New Chat');
       }
     };
 
     fetchMessages();
-  }, [chatId, favoriteRecipes]);
+  }, [chatId, favoriteRecipes, navigate]); // Add favoriteRecipes as dependency
 
   const handleLike = async (messageIndex) => {
     const token = localStorage.getItem('userToken');
@@ -473,10 +489,8 @@ const CreateRecipePage = () => {
     if (!message.isRecipe) return;
 
     try {
-      // Get recipe name from the recipe data - handle both backend and frontend formats
       const recipeName = message.recipe.recipe_name || message.recipe.title || `Recipe-${messageIndex}`;
       
-      // Call the favorites API
       const response = await axios.post(
         `http://127.0.0.1:8000/favorites/${encodeURIComponent(recipeName)}`,
         {},
@@ -487,12 +501,10 @@ const CreateRecipePage = () => {
         }
       );
 
-      // Update local state based on API response
       const updatedMessages = [...messages];
       updatedMessages[messageIndex].isLiked = response.data.favorited;
       setMessages(updatedMessages);
 
-      // Update favorite recipes list
       if (response.data.favorited) {
         setFavoriteRecipes(prev => [...prev, recipeName]);
       } else {
@@ -513,21 +525,18 @@ const CreateRecipePage = () => {
     if (!message.isRecipe) return;
 
     try {
-      // Get recipe name - handle both backend and frontend formats
       const recipeName = message.recipe.recipe_name || message.recipe.title || `Recipe-${messageIndex}`;
       
-      // Prepare cooked recipe data matching the backend model
       const recipeData = {
         recipe_name: recipeName,
-        calories: 0, // Default since backend doesn't provide calories
-        servings: 4, // Default servings
+        calories: 0,
+        servings: 4,
         cooked_at: new Date().toISOString(),
-        recipe_data: message.recipe // Store the entire recipe data
+        recipe_data: message.recipe
       };
 
       console.log("Sending cooked recipe data:", recipeData);
 
-      // Call the cooked recipe API
       const response = await axios.post(
         'http://127.0.0.1:8000/cooked-recipe',
         recipeData,
@@ -539,7 +548,6 @@ const CreateRecipePage = () => {
         }
       );
 
-      // Update local state only if the API call was successful
       if (response.data.success) {
         const updatedMessages = [...messages];
         updatedMessages[messageIndex].isCooked = true;
@@ -547,15 +555,12 @@ const CreateRecipePage = () => {
         setMessages(updatedMessages);
 
         console.log('Recipe marked as cooked:', recipeName);
-        
-        // Show success message to user
         alert('Recipe marked as cooked! 🎉 Check your dashboard to see your progress.');
       }
 
     } catch (error) {
       console.error("Failed to mark recipe as cooked:", error);
       
-      // Show specific error messages to user
       if (error.response?.status === 422) {
         alert('Invalid recipe data. Please try again.');
       } else if (error.response?.status === 500) {
@@ -582,9 +587,32 @@ const CreateRecipePage = () => {
 
     const token = localStorage.getItem('userToken');
     
-    if (token && chatId) {
+    // If this is a new chat (no chatId), create a new chat history first
+    let currentTitle = chatId;
+    if (!chatId && token) {
       try {
-        await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, 
+        // Create a new chat with the first few words of the user's message as title
+        const title = inputValue.slice(0, 30) + (inputValue.length > 30 ? '...' : '');
+        const response = await axios.post('http://127.0.0.1:8000/history', 
+          { title },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        currentTitle = response.data.title;
+        // Update URL to include the new chat ID
+        navigate(`/create-recipe/${currentTitle}`);
+      } catch (error) {
+        console.error("Failed to create new chat:", error);
+      }
+    }
+
+    // Save user message to history if we have a chat title
+    if (token && currentTitle) {
+      try {
+        await axios.post(`http://127.0.0.1:8000/history/${currentTitle}/messages`, 
           { role: 'user', content: inputValue }, 
           {
             headers: {
@@ -624,9 +652,10 @@ const CreateRecipePage = () => {
 
       setMessages((prev) => [...prev, aiMessage]);
 
-      if (token && chatId) {
+      // Save AI message to history if we have a chat title
+      if (token && currentTitle) {
         try {
-          await axios.post(`http://127.0.0.1:8000/history/${chatId}/messages`, 
+          await axios.post(`http://127.0.0.1:8000/history/${currentTitle}/messages`, 
             { role: 'ai', content: JSON.stringify(recipeData) }, 
             {
               headers: {
@@ -677,7 +706,7 @@ const CreateRecipePage = () => {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent font-display">
                 AI Recipe Creator
               </h1>
-              <p className="text-gray-500 text-sm">Your personal kitchen assistant 🍳</p>
+              <p className="text-gray-500 text-sm">{currentChatTitle}</p>
             </div>
           </div>
           <motion.div 
@@ -701,90 +730,96 @@ const CreateRecipePage = () => {
           className="flex-1 overflow-y-auto p-6 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-0"
         >
           <AnimatePresence mode="popLayout">
-            {messages.map((msg, index) => (
-              <motion.div
-                key={`${index}-${msg.timestamp}`}
-                layout
-                initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
-                transition={{ 
-                  type: "spring", 
-                  stiffness: 500, 
-                  damping: 30,
-                  layout: { duration: 0.3 }
-                }}
-                className={`flex gap-4 items-start ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {msg.sender === 'ai' && (
-                  <motion.div 
-                    className="w-10 h-10 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 flex items-center justify-center text-white shadow-lg flex-shrink-0 mt-1"
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                  >
-                    <GiKnifeForkCreate size={20} />
-                  </motion.div>
-                )}
-                
-                <motion.div 
-                  className={`max-w-2xl p-6 rounded-3xl ${
-                    msg.sender === 'user'
-                      ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-br-none shadow-xl'
-                      : 'bg-white text-gray-700 rounded-bl-none border border-gray-200/50 shadow-lg'
-                  }`}
-                  style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}
-                  whileHover={{ scale: 1.01 }}
-                  transition={{ type: "spring", stiffness: 400 }}
+            {messages.map((msg, index) => {
+              // Skip invalid messages
+              if (!msg || !msg.sender || !msg.text) {
+                return null;
+              }
+              
+              return (
+                <motion.div
+                  key={`${index}-${msg.timestamp}`}
+                  layout
+                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                  transition={{ 
+                    type: "spring", 
+                    stiffness: 500, 
+                    damping: 30,
+                    layout: { duration: 0.3 }
+                  }}
+                  className={`flex gap-4 items-start ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  {msg.isRecipe ? (
-                    <RecipeDisplay 
-                      recipe={msg.recipe}
-                      youtube_link={msg.youtube_link}
-                      image_url={msg.image_url}
-                      onLike={() => handleLike(index)}
-                      onCooked={() => handleCooked(index)}
-                      isLiked={msg.isLiked}
-                      isCooked={msg.isCooked}
-                    />
-                  ) : (
-                    <div>
-                      <p className="whitespace-pre-wrap leading-relaxed break-words text-lg">{msg.text}</p>
-                      {/* Add action buttons for non-recipe AI messages if needed */}
-                      {msg.sender === 'ai' && !msg.isRecipe && (
-                        <motion.div 
-                          className="flex gap-3 mt-4"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.3 }}
-                        >
-                          <motion.button
-                            onClick={() => handleLike(index)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200 ${
-                              msg.isLiked 
-                                ? 'bg-red-500 text-white shadow-lg' 
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                  {msg.sender === 'ai' && (
+                    <motion.div 
+                      className="w-10 h-10 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 flex items-center justify-center text-white shadow-lg flex-shrink-0 mt-1"
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                    >
+                      <GiKnifeForkCreate size={20} />
+                    </motion.div>
+                  )}
+                  
+                  <motion.div 
+                    className={`max-w-2xl p-6 rounded-3xl ${
+                      msg.sender === 'user'
+                        ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-br-none shadow-xl'
+                        : 'bg-white text-gray-700 rounded-bl-none border border-gray-200/50 shadow-lg'
+                    }`}
+                    style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}
+                    whileHover={{ scale: 1.01 }}
+                    transition={{ type: "spring", stiffness: 400 }}
+                  >
+                    {msg.isRecipe ? (
+                      <RecipeDisplay 
+                        recipe={msg.recipe}
+                        youtube_link={msg.youtube_link}
+                        image_url={msg.image_url}
+                        onLike={() => handleLike(index)}
+                        onCooked={() => handleCooked(index)}
+                        isLiked={msg.isLiked}
+                        isCooked={msg.isCooked}
+                      />
+                    ) : (
+                      <div>
+                        <p className="whitespace-pre-wrap leading-relaxed break-words text-lg">{msg.text}</p>
+                        {msg.sender === 'ai' && !msg.isRecipe && (
+                          <motion.div 
+                            className="flex gap-3 mt-4"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.3 }}
                           >
-                            <Heart size={18} className={msg.isLiked ? 'fill-current' : ''} />
-                            {msg.isLiked ? 'Liked' : 'Like'}
-                          </motion.button>
-                        </motion.div>
-                      )}
-                    </div>
+                            <motion.button
+                              onClick={() => handleLike(index)}
+                              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-200 ${
+                                msg.isLiked 
+                                  ? 'bg-red-500 text-white shadow-lg' 
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              <Heart size={18} className={msg.isLiked ? 'fill-current' : ''} />
+                              {msg.isLiked ? 'Liked' : 'Like'}
+                            </motion.button>
+                          </motion.div>
+                        )}
+                      </div>
+                    )}
+                  </motion.div>
+                  
+                  {msg.sender === 'user' && (
+                    <motion.div 
+                      className="w-10 h-10 rounded-xl bg-gradient-to-r from-gray-600 to-gray-700 flex items-center justify-center text-white shadow-lg flex-shrink-0 mt-1"
+                      whileHover={{ scale: 1.1, rotate: -5 }}
+                    >
+                      <Users size={20} />
+                    </motion.div>
                   )}
                 </motion.div>
-                
-                {msg.sender === 'user' && (
-                  <motion.div 
-                    className="w-10 h-10 rounded-xl bg-gradient-to-r from-gray-600 to-gray-700 flex items-center justify-center text-white shadow-lg flex-shrink-0 mt-1"
-                    whileHover={{ scale: 1.1, rotate: -5 }}
-                  >
-                    <Users size={20} />
-                  </motion.div>
-                )}
-              </motion.div>
-            ))}
+              );
+            })}
           </AnimatePresence>
           
           {isLoading && (

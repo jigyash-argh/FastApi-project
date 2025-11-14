@@ -42,7 +42,6 @@ const LoginPage = () => {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
             });
-            
             const { access_token } = response.data;
             localStorage.setItem('userToken', access_token);
             
