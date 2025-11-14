@@ -103,19 +103,19 @@ def get_recipe_and_video(query: str) -> Dict:
         "X-Title": "Recipe Assistant"
     }
     
-    # UPDATED PROMPT: Now includes calories per serving
+    # UPDATED PROMPT: Now matches your RecipeResponse model
     prompt = f"""You are a professional chef and nutritionist. Create a DETAILED recipe for: "{query}"
 
 CRITICAL: You MUST return ONLY VALID JSON with EXACTLY these keys:
-- "title": string (recipe title)
-- "prepTime": string (e.g., "15 mins")
-- "cookTime": string (e.g., "30 mins")
-- "servings": string (e.g., "4 people")
-- "calories_per_serving": number (estimated calories per serving)
-- "ingredients": array of strings (e.g., ["1 cup flour", "2 eggs"])
+- "recipe_name": string (recipe title)
 - "instructions": array of strings (numbered steps)
-- "youtube_search_term": string
-- "image_search_term": string
+- "ingredients": array of strings (e.g., ["1 cup flour", "2 eggs"])
+- "video_url": string (YouTube search URL)
+- "image_url": string (image search term)
+- "prepTime": string (e.g., "15 mins") [OPTIONAL]
+- "cookTime": string (e.g., "30 mins") [OPTIONAL] 
+- "servings": string (e.g., "4 people") [OPTIONAL]
+- "calories_per_serving": number [OPTIONAL]
 
 IMPORTANT: 
 - Return ONLY the JSON object, no additional text
@@ -127,15 +127,15 @@ IMPORTANT:
 
 Example of what I want:
 {{
-  "title": "Garlic Butter Paneer",
-  "prepTime": "15 mins",
-  "cookTime": "20 mins", 
-  "servings": "3-4 people",
-  "calories_per_serving": 420,
-  "ingredients": ["250g paneer, cubed", "2 tbsp butter", "4 garlic cloves, minced", "1 onion, sliced", "1 capsicum, sliced", "1 tsp garam masala", "1/2 tsp turmeric", "salt to taste", "2 tbsp cream", "fresh coriander for garnish"],
+  "recipe_name": "Garlic Butter Paneer",
   "instructions": ["Heat butter in a pan, add minced garlic and sauté until golden", "Add sliced onions and cook until translucent", "Add capsicum and cook for 2 minutes", "Add paneer cubes and spices, mix gently", "Cook for 5-7 minutes until paneer is heated through", "Add cream and mix well", "Garnish with fresh coriander and serve hot"],
-  "youtube_search_term": "garlic butter paneer recipe",
-  "image_search_term": "garlic butter paneer"
+  "ingredients": ["250g paneer, cubed", "2 tbsp butter", "4 garlic cloves, minced", "1 onion, sliced", "1 capsicum, sliced", "1 tsp garam masala", "1/2 tsp turmeric", "salt to taste", "2 tbsp cream", "fresh coriander for garnish"],
+  "video_url": "https://www.youtube.com/results?search_query=garlic+butter+paneer+recipe",
+  "image_url": "garlic butter paneer",
+  "prepTime": "15 mins",
+  "cookTime": "20 mins",
+  "servings": "3-4 people",
+  "calories_per_serving": 420
 }}
 
 Now create a SPECIFIC recipe for: {query}
@@ -179,54 +179,57 @@ Return ONLY the JSON:"""
                 recipe_data = json.loads(cleaned_content)
                 print("✅ JSON parsed successfully!")
                 
-                # Validate required structure (now includes calories_per_serving)
-                required_keys = ["title", "prepTime", "cookTime", "servings", "calories_per_serving", "ingredients", "instructions"]
+                # Validate required structure (now matches RecipeResponse model)
+                required_keys = ["recipe_name", "instructions", "ingredients"]
                 if not all(key in recipe_data for key in required_keys):
                     print("⚠️ Missing some required keys, using fallback")
                     return get_structured_fallback_recipe(query)
                 
-                # Process the data with better error handling
-                title = recipe_data.get("title", f"Delicious {query}").strip()
+                # FIX 6: Process the data with better error handling
+                title = recipe_data.get("recipe_name", recipe_data.get("title", f"Delicious {query}")).strip()  # Support both field names
                 prep_time = recipe_data.get("prepTime", "15-20 mins").strip()
                 cook_time = recipe_data.get("cookTime", "30-45 mins").strip()
                 servings = recipe_data.get("servings", "2-4 people").strip()
-                calories = recipe_data.get("calories_per_serving", 350)  # Default fallback
-                
+                calories = recipe_data.get("calories_per_serving", 350)
+
                 # Ensure calories is a number
                 try:
                     calories = int(calories)
                 except (ValueError, TypeError):
                     calories = 350  # Default if parsing fails
-                
+
                 # Ensure ingredients and instructions are proper arrays
                 ingredients = recipe_data.get("ingredients", [])
                 if isinstance(ingredients, str):
                     ingredients = [line.strip() for line in ingredients.replace(',', '\n').split('\n') if line.strip()]
-                
+
                 instructions = recipe_data.get("instructions", [])
                 if isinstance(instructions, str):
                     instructions = [line.strip() for line in instructions.split('\n') if line.strip()]
                 elif isinstance(instructions, list) and instructions:
                     instructions = [str(step).strip() for step in instructions if step]
-                
+
                 youtube_search = recipe_data.get("youtube_search_term", query).strip()
                 image_search = recipe_data.get("image_search_term", query).strip()
-                
+
                 # FIXED: Use working image URL function
                 image_url = get_working_image_url(image_search)
                 youtube_link = f"https://www.youtube.com/results?search_query={urllib.parse.quote(youtube_search + ' recipe')}"
-                
-                # Structured result for frontend - NOW INCLUDES CALORIES
+
+                # FIX 6: Structured result for frontend - MATCHES RecipeResponse model
                 result = {
-                    "title": title,
+                    "recipe_name": title,  # Primary field for API
+                    "instructions": instructions,
+                    "ingredients": ingredients,
+                    "video_url": youtube_link,  # Primary field for API
+                    "image_url": image_url,
+                    # Include additional fields for frontend compatibility
+                    "title": title,  # Keep for frontend
                     "prepTime": prep_time,
                     "cookTime": cook_time,
                     "servings": servings,
-                    "calories_per_serving": calories,  # NEW: Actual calories from AI
-                    "ingredients": ingredients,
-                    "instructions": instructions,
-                    "youtube_link": youtube_link,
-                    "image_url": image_url
+                    "calories_per_serving": calories,
+                    "youtube_link": youtube_link  # Keep for frontend
                 }
                 
                 print(f"✅ Structured recipe generated successfully!")
@@ -248,6 +251,7 @@ Return ONLY the JSON:"""
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         return get_structured_fallback_recipe(query)
+
 def get_structured_fallback_recipe(query: str) -> Dict:
     """
     Structured fallback recipe that matches frontend expectations WITH CALORIES
@@ -257,11 +261,19 @@ def get_structured_fallback_recipe(query: str) -> Dict:
     # Specific fallback recipes for common queries with reliable image URLs AND CALORIES
     structured_recipes = {
         "paneer": {
-            "title": "Garlic Butter Paneer",
-            "prepTime": "15 mins",
-            "cookTime": "20 mins",
-            "servings": "3-4 people",
-            "calories_per_serving": 420,  # NEW: Calorie information
+            "recipe_name": "Garlic Butter Paneer",  # Changed from 'title'
+            "instructions": [
+                "Heat butter in a pan over medium heat",
+                "Add minced garlic and sauté until golden brown",
+                "Add sliced onions and cook until translucent", 
+                "Add capsicum and cook for 2-3 minutes until slightly tender",
+                "Add paneer cubes and all spices (garam masala, turmeric, chili powder, salt)",
+                "Gently mix everything together without breaking paneer",
+                "Cook for 5-7 minutes until paneer is heated through",
+                "Add fresh cream and mix well",
+                "Garnish with fresh coriander leaves",
+                "Serve hot with roti or naan"
+            ],
             "ingredients": [
                 "250g paneer, cubed",
                 "2 tbsp butter",
@@ -275,27 +287,28 @@ def get_structured_fallback_recipe(query: str) -> Dict:
                 "2 tbsp fresh cream",
                 "Fresh coriander for garnish"
             ],
-            "instructions": [
-                "Heat butter in a pan over medium heat",
-                "Add minced garlic and sauté until golden brown",
-                "Add sliced onions and cook until translucent", 
-                "Add capsicum and cook for 2-3 minutes until slightly tender",
-                "Add paneer cubes and all spices (garam masala, turmeric, chili powder, salt)",
-                "Gently mix everything together without breaking paneer",
-                "Cook for 5-7 minutes until paneer is heated through",
-                "Add fresh cream and mix well",
-                "Garnish with fresh coriander leaves",
-                "Serve hot with roti or naan"
-            ],
+            "video_url": "https://www.youtube.com/results?search_query=garlic+butter+paneer+recipe",  # Changed from 'youtube_link'
             "image_url": "https://i.imgur.com/6Q9p7Fq.jpg",
+            # Additional fields for frontend compatibility
+            "title": "Garlic Butter Paneer",
+            "prepTime": "15 mins",
+            "cookTime": "20 mins",
+            "servings": "3-4 people",
+            "calories_per_serving": 420,
             "youtube_link": "https://www.youtube.com/results?search_query=garlic+butter+paneer+recipe"
         },
         "chicken": {
-            "title": "Butter Chicken",
-            "prepTime": "30 mins", 
-            "cookTime": "40 mins",
-            "servings": "4 people",
-            "calories_per_serving": 580,  # NEW: Calorie information
+            "recipe_name": "Butter Chicken",  # Changed from 'title'
+            "instructions": [
+                "Marinate chicken with salt and turmeric for 15 minutes",
+                "Heat butter in a pan, sauté onions until golden",
+                "Add ginger-garlic paste and cook for 2 minutes",
+                "Add tomato puree and cook until oil separates",
+                "Add spices and cook for another 2 minutes",
+                "Add chicken and cook for 15-20 minutes until tender",
+                "Add cream and kasuri methi, simmer for 5 minutes",
+                "Garnish with fresh coriander and serve with rice"
+            ],
             "ingredients": [
                 "500g chicken, cubed",
                 "2 tbsp butter",
@@ -309,34 +322,18 @@ def get_structured_fallback_recipe(query: str) -> Dict:
                 "1 tsp sugar",
                 "Fresh coriander for garnish"
             ],
-            "instructions": [
-                "Marinate chicken with salt and turmeric for 15 minutes",
-                "Heat butter in a pan, sauté onions until golden",
-                "Add ginger-garlic paste and cook for 2 minutes",
-                "Add tomato puree and cook until oil separates",
-                "Add spices and cook for another 2 minutes",
-                "Add chicken and cook for 15-20 minutes until tender",
-                "Add cream and kasuri methi, simmer for 5 minutes",
-                "Garnish with fresh coriander and serve with rice"
-            ],
+            "video_url": "https://www.youtube.com/results?search_query=butter+chicken+recipe",  # Changed from 'youtube_link'
             "image_url": "https://i.imgur.com/8JZ3q4L.jpg",
+            # Additional fields for frontend compatibility
+            "title": "Butter Chicken",
+            "prepTime": "30 mins", 
+            "cookTime": "40 mins",
+            "servings": "4 people",
+            "calories_per_serving": 580,
             "youtube_link": "https://www.youtube.com/results?search_query=butter+chicken+recipe"
         },
         "pasta": {
-            "title": "Creamy Garlic Pasta",
-            "prepTime": "10 mins",
-            "cookTime": "15 mins",
-            "servings": "2 people",
-            "calories_per_serving": 650,  # NEW: Calorie information
-            "ingredients": [
-                "200g pasta",
-                "3 tbsp butter",
-                "5 garlic cloves, minced",
-                "1 cup heavy cream",
-                "1/2 cup grated parmesan",
-                "Salt and pepper to taste",
-                "Fresh parsley, chopped"
-            ],
+            "recipe_name": "Creamy Garlic Pasta",  # Changed from 'title'
             "instructions": [
                 "Cook pasta according to package instructions",
                 "In a pan, melt butter and sauté garlic until fragrant",
@@ -346,7 +343,23 @@ def get_structured_fallback_recipe(query: str) -> Dict:
                 "Add cooked pasta to the sauce and toss to coat",
                 "Garnish with fresh parsley and serve immediately"
             ],
+            "ingredients": [
+                "200g pasta",
+                "3 tbsp butter",
+                "5 garlic cloves, minced",
+                "1 cup heavy cream",
+                "1/2 cup grated parmesan",
+                "Salt and pepper to taste",
+                "Fresh parsley, chopped"
+            ],
+            "video_url": "https://www.youtube.com/results?search_query=creamy+garlic+pasta+recipe",  # Changed from 'youtube_link'
             "image_url": "https://i.imgur.com/3Q9p7Fq.jpg",
+            # Additional fields for frontend compatibility
+            "title": "Creamy Garlic Pasta",
+            "prepTime": "10 mins",
+            "cookTime": "15 mins",
+            "servings": "2 people",
+            "calories_per_serving": 650,
             "youtube_link": "https://www.youtube.com/results?search_query=creamy+garlic+pasta+recipe"
         }
     }
@@ -362,17 +375,7 @@ def get_structured_fallback_recipe(query: str) -> Dict:
     # Generic structured fallback with reliable image AND CALORIES
     print("🔄 Using generic fallback recipe")
     return {
-        "title": f"Delicious {query.title()}",
-        "prepTime": "15-20 mins",
-        "cookTime": "30-45 mins", 
-        "servings": "2-4 people",
-        "calories_per_serving": 400,  # NEW: Default calorie estimate
-        "ingredients": [
-            "Fresh ingredients based on your request",
-            "Essential spices and seasonings",
-            "Cooking oil or butter",
-            "Herbs for garnish"
-        ],
+        "recipe_name": f"Delicious {query.title()}",  # Changed from 'title'
         "instructions": [
             "Prepare all your ingredients beforehand",
             "Follow proper cooking techniques for best results",
@@ -380,9 +383,23 @@ def get_structured_fallback_recipe(query: str) -> Dict:
             "Taste and adjust flavors before serving",
             "Garnish beautifully and serve hot"
         ],
-        "youtube_link": f"https://www.youtube.com/results?search_query={urllib.parse.quote(query + ' recipe')}",
-        "image_url": "https://picsum.photos/500/500?random=1&food=delicious"
+        "ingredients": [
+            "Fresh ingredients based on your request",
+            "Essential spices and seasonings",
+            "Cooking oil or butter",
+            "Herbs for garnish"
+        ],
+        "video_url": f"https://www.youtube.com/results?search_query={urllib.parse.quote(query + ' recipe')}",  # Changed from 'youtube_link'
+        "image_url": "https://picsum.photos/500/500?random=1&food=delicious",
+        # Additional fields for frontend compatibility
+        "title": f"Delicious {query.title()}",
+        "prepTime": "15-20 mins",
+        "cookTime": "30-45 mins", 
+        "servings": "2-4 people",
+        "calories_per_serving": 400,
+        "youtube_link": f"https://www.youtube.com/results?search_query={urllib.parse.quote(query + ' recipe')}"
     }
+
 def get_fallback_recipe(query: str) -> Dict:
     """Simple fallback function for main.py"""
     return get_structured_fallback_recipe(query)
