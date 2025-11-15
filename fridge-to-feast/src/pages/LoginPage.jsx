@@ -38,7 +38,7 @@ const LoginPage = () => {
 
         try {
             // Send POST request to the FastAPI '/token' endpoint
-            const response = await axios.post('http://127.0.0.1:8000/token',formData,{headers: {
+            const response = await axios.post('http://127.0.0.1:8000/api/v1/token',formData,{headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
             });

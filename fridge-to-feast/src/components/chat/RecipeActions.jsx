@@ -19,7 +19,7 @@ const RecipeActions = ({ recipe }) => {
       if (!token) return;
 
       try {
-        const response = await axios.get('http://127.0.0.1:8000/favorites', {
+        const response = await axios.get('http://127.0.0.1:8000/api/v1/favorites', {
           headers: { Authorization: `Bearer ${token}` }
         });
         const favorites = response.data.favorites || [];
@@ -47,7 +47,7 @@ const RecipeActions = ({ recipe }) => {
     setLoading(true);
     try {
       await axios.post(
-        `http://127.0.0.1:8000/favorites/${encodeURIComponent(recipeName)}`, 
+        `http://127.0.0.1:8000/api/v1/favorites/${encodeURIComponent(recipeName)}`,
         {}, 
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -99,7 +99,7 @@ const RecipeActions = ({ recipe }) => {
       };
 
       await axios.post(
-        'http://127.0.0.1:8000/cooked-recipes',
+        'http://127.0.0.1:8000/api/v1/cooked-recipe',
         cookedData,
         {
           headers: { 

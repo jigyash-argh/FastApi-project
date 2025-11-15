@@ -31,7 +31,7 @@ const AuthLayout = () => {
       }
 
       try {
-        const response = await axios.get('http://127.0.0.1:8000/users/me', {
+        const response = await axios.get('http://127.0.0.1:8000/api/v1/users/me', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -54,7 +54,7 @@ const AuthLayout = () => {
       const token = localStorage.getItem('userToken');
       if (token) {
         try {
-          const response = await axios.get('http://127.0.0.1:8000/history', {
+          const response = await axios.get('http://127.0.0.1:8000/api/v1/history', {
             headers: {
               Authorization: `Bearer ${token}`,
             },
@@ -95,7 +95,7 @@ const AuthLayout = () => {
     
     if (token) {
       try {
-        await axios.post('http://127.0.0.1:8000/history', 
+        await axios.post('http://127.0.0.1:8000/api/v1/history', 
           { title: newRecipeName.trim() }, 
           {
             headers: {
@@ -141,7 +141,7 @@ const AuthLayout = () => {
     const token = localStorage.getItem('userToken');
     if (token && selectedChats.length > 0) {
       try {
-        await axios.delete('http://127.0.0.1:8000/history', {
+        await axios.delete('http://127.0.0.1:8000/api/v1/history', {
           headers: {
             Authorization: `Bearer ${token}`,
           },

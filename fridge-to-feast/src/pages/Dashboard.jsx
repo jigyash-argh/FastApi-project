@@ -38,14 +38,14 @@ const Dashboard = () => {
         setIsLoading(true);
         
         // Fetch user details
-        const userResponse = await axios.get('http://127.0.0.1:8000/users/me', {
+        const userResponse = await axios.get('http://127.0.0.1:8000/api/v1/users/me', {
           headers: { Authorization: `Bearer ${token}` }
         });
         setUserDetails(userResponse.data);
 
         // Fetch dashboard stats which includes cooked recipes
         try {
-          const statsResponse = await axios.get('http://127.0.0.1:8000/dashboard/stats', {
+          const statsResponse = await axios.get('http://127.0.0.1:8000/api/v1/dashboard/stats', {
             headers: { Authorization: `Bearer ${token}` }
           });
           
@@ -58,7 +58,7 @@ const Dashboard = () => {
           console.log("Dashboard stats endpoint not available, using fallback data");
           // If dashboard stats endpoint fails, try the cooked-recipes endpoint
           try {
-            const cookedResponse = await axios.get('http://127.0.0.1:8000/cooked-recipes/today', {
+            const cookedResponse = await axios.get('http://127.0.0.1:8000/api/v1/cooked-recipes/today', {
               headers: { Authorization: `Bearer ${token}` }
             });
             
@@ -171,7 +171,7 @@ const Dashboard = () => {
       }
 
       const response = await axios.put(
-        'http://127.0.0.1:8000/users/me', 
+        'http://127.0.0.1:8000/api/v1/users/me', 
         payload,
         {
           headers: {
@@ -240,7 +240,7 @@ const Dashboard = () => {
 
     try {
       // Fetch updated dashboard stats
-      const statsResponse = await axios.get('http://127.0.0.1:8000/dashboard/stats', {
+      const statsResponse = await axios.get('http://127.0.0.1:8000/api/v1/dashboard/stats', {
         headers: { Authorization: `Bearer ${token}` }
       });
       

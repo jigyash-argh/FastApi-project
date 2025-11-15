@@ -26,7 +26,7 @@ const FavoritesPage = () => {
     try {
       // Create or get existing chat
       const response=await axios.post(
-        "http://127.0.0.1:8000/history",
+        "http://127.0.0.1:8000/api/v1/history",
         { title: recipeName },
         {
           headers: {
@@ -62,7 +62,7 @@ const FavoritesPage = () => {
 
       // Save user message to chat history
       await axios.post(
-        `http://127.0.0.1:8000/history/${encodeURIComponent(recipeName)}/messages`,
+        `http://127.0.0.1:8000/api/v1/history/${encodeURIComponent(recipeName)}/messages`,
         userMessage,
         {
           headers: {
@@ -73,7 +73,7 @@ const FavoritesPage = () => {
 
       // Get AI response for the recipe
       const aiResponse = await axios.post(
-        'http://127.0.0.1:8000/chat',
+        'http://127.0.0.1:8000/api/v1/chat',
         { message: `Create a detailed recipe for: ${recipeName}` },
         {
           headers: {
@@ -90,7 +90,7 @@ const FavoritesPage = () => {
       };
 
       await axios.post(
-        `http://127.0.0.1:8000/history/${encodeURIComponent(recipeName)}/messages`,
+        `http://127.0.0.1:8000/api/v1/history/${encodeURIComponent(recipeName)}/messages`,
         aiMessage,
         {
           headers: {
@@ -110,7 +110,7 @@ const FavoritesPage = () => {
   const fetchFavorites = async () => {
     const token = localStorage.getItem('userToken');
     try {
-      const response = await axios.get('http://127.0.0.1:8000/favorites', {
+      const response = await axios.get('http://127.0.0.1:8000/api/v1/favorites', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setFavorites(response.data.favorites || []);
@@ -124,7 +124,7 @@ const FavoritesPage = () => {
   const removeFavorite = async (recipeName) => {
     const token = localStorage.getItem('userToken');
     try {
-      await axios.post(`http://127.0.0.1:8000/favorites/${encodeURIComponent(recipeName)}`, {}, {
+      await axios.post(`http://127.0.0.1:8000/api/v1/favorites/${encodeURIComponent(recipeName)}`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setFavorites(favorites.filter(fav => fav !== recipeName));

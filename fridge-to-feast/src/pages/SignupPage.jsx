@@ -57,7 +57,7 @@ const SignupPage = () => {
 
     try {
       // The /register endpoint expects a JSON payload
-      const response = await axios.post("http://127.0.0.1:8000/register", {
+      const response = await axios.post("http://127.0.0.1:8000/api/v1/register", {
         username: username,
         email: email,
         password: password,

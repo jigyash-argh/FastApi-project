@@ -373,7 +373,7 @@ const CreateRecipePage = () => {
       const token = localStorage.getItem('userToken');
       if (token) {
         try {
-          const response = await axios.get('http://127.0.0.1:8000/favorites', {
+          const response = await axios.get('http://127.0.0.1:8000/api/v1/favorites', {
             headers: {
               Authorization: `Bearer ${token}`,
             },
@@ -443,7 +443,7 @@ const CreateRecipePage = () => {
         const token = localStorage.getItem('userToken');
         if (token) {
           try {
-            const response = await axios.get(`http://127.0.0.1:8000/history/${chatId}`, {
+            const response = await axios.get(`http://127.0.0.1:8000/api/v1/history/${chatId}`, {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
@@ -492,7 +492,7 @@ const CreateRecipePage = () => {
       const recipeName = message.recipe.recipe_name || message.recipe.title || `Recipe-${messageIndex}`;
       
       const response = await axios.post(
-        `http://127.0.0.1:8000/favorites/${encodeURIComponent(recipeName)}`,
+        `http://127.0.0.1:8000/api/v1/favorites/${encodeURIComponent(recipeName)}`,
         {},
         {
           headers: {
@@ -538,7 +538,7 @@ const CreateRecipePage = () => {
       console.log("Sending cooked recipe data:", recipeData);
 
       const response = await axios.post(
-        'http://127.0.0.1:8000/cooked-recipe',
+        'http://127.0.0.1:8000/api/v1/cooked-recipe',
         recipeData,
         {
           headers: {
@@ -593,7 +593,7 @@ const CreateRecipePage = () => {
       try {
         // Create a new chat with the first few words of the user's message as title
         const title = inputValue.slice(0, 30) + (inputValue.length > 30 ? '...' : '');
-        const response = await axios.post('http://127.0.0.1:8000/history', 
+        const response = await axios.post('http://127.0.0.1:8000/api/v1/history', 
           { title },
           {
             headers: {
@@ -612,7 +612,7 @@ const CreateRecipePage = () => {
     // Save user message to history if we have a chat title
     if (token && currentTitle) {
       try {
-        await axios.post(`http://127.0.0.1:8000/history/${currentTitle}/messages`, 
+        await axios.post(`http://127.0.0.1:8000/api/v1/history/${currentTitle}/messages`, 
           { role: 'user', content: inputValue }, 
           {
             headers: {
@@ -626,7 +626,7 @@ const CreateRecipePage = () => {
     }
 
     try {
-      const response = await axios.post('http://127.0.0.1:8000/chat', 
+      const response = await axios.post('http://127.0.0.1:8000/api/v1/chat', 
         { message: inputValue },
         {
           headers: {
@@ -655,7 +655,7 @@ const CreateRecipePage = () => {
       // Save AI message to history if we have a chat title
       if (token && currentTitle) {
         try {
-          await axios.post(`http://127.0.0.1:8000/history/${currentTitle}/messages`, 
+          await axios.post(`http://127.0.0.1:8000/api/v1/history/${currentTitle}/messages`, 
             { role: 'ai', content: JSON.stringify(recipeData) }, 
             {
               headers: {
