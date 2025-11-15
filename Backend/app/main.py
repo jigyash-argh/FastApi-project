@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, recipes, history, dashboard  # Fixed import path
+from app.routers import auth, recipes, history, dashboard
 
 app = FastAPI(title="Food-to-Feast API")
 
@@ -14,10 +14,11 @@ app.add_middleware(
 )
 
 # --- Include Routers ---
-app.include_router(auth.router, prefix="/api", tags=["Authentication & Users"])
-app.include_router(recipes.router, prefix="/api", tags=["Recipes & Chat"])
-app.include_router(history.router, prefix="/api", tags=["Chat History"])
-app.include_router(dashboard.router, prefix="/api", tags=["User Dashboard"])
+# Add /v1 to match what your frontend is expecting
+app.include_router(auth.router, prefix="/api/v1", tags=["Authentication & Users"])
+app.include_router(recipes.router, prefix="/api/v1", tags=["Recipes & Chat"])
+app.include_router(history.router, prefix="/api/v1", tags=["Chat History"])
+app.include_router(dashboard.router, prefix="/api/v1", tags=["User Dashboard"])
 
 @app.get("/")
 def read_root():
