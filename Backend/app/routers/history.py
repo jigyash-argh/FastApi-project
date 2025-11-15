@@ -1,14 +1,14 @@
-# app/routers/history.py
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
-from .. import auth, db
-from ..models import ChatHistoryCreate, ChatHistoryItem, MessageCreate, ChatHistoryDelete
+from app import auth, db
+from app.models import ChatHistoryCreate, ChatHistoryItem, MessageCreate, ChatHistoryDelete
 
 router = APIRouter()
 
 @router.get("/history", response_model=List[ChatHistoryItem])
 async def get_history(current_user: dict = Depends(auth.get_current_user)):
-    return await db.get_chat_history(current_user["username"])
+    history = await db.get_chat_history(current_user["username"])
+    return history
 
 @router.post("/history", response_model=ChatHistoryItem)
 async def create_history(chat_item: ChatHistoryCreate, current_user: dict = Depends(auth.get_current_user)):
@@ -27,8 +27,10 @@ async def get_chat_by_title(title: str, current_user: dict = Depends(auth.get_cu
 
 @router.post("/history/{title}/messages")
 async def add_message_to_chat(title: str, message: MessageCreate, current_user: dict = Depends(auth.get_current_user)):
-    await db.add_message_to_chat(current_user["username"], title, message.dict())
-    return message
+    success = await db.add_message_to_chat(current_user["username"], title, message.dict())
+    if success:
+        return {"message": "Message added successfully"}
+    raise HTTPException(status_code=404, detail="Chat not found")
 
 @router.delete("/history")
 async def delete_history(delete_request: ChatHistoryDelete, current_user: dict = Depends(auth.get_current_user)):

@@ -7,3 +7,5 @@ pydantic
 pydantic-settings
 langchain
 langchain-google-genai
+pydantic[email]
+python-multipart

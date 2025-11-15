@@ -1,5 +1,4 @@
-# app/models.py
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, validator
 from typing import List, Optional, Any
 from datetime import datetime
 
@@ -22,6 +21,8 @@ class UserUpdate(BaseModel):
 class UserPublic(UserBase):
     age: Optional[int]
     goal_calories: Optional[int]
+    id: Optional[str] = None
+    
     class Config:
         from_attributes = True
 
@@ -36,6 +37,7 @@ class MessageCreate(BaseModel):
 class ChatHistoryItem(BaseModel):
     title: str
     messages: List[MessageCreate]
+    created_at: Optional[str] = None
 
 class ChatHistoryCreate(BaseModel):
     title: str
@@ -47,12 +49,23 @@ class ChatRequest(BaseModel):
     message: str
 
 class RecipeResponse(BaseModel):
-
     recipe_name: str
     instructions: List[str]
     ingredients: List[str]
-    video_url: Optional[str]
-    image_url: Optional[str]
+    video_url: Optional[str] = None
+    image_url: Optional[str] = None
+    # Additional fields for compatibility
+    title: Optional[str] = None
+    prepTime: Optional[str] = None
+    cookTime: Optional[str] = None
+    servings: Optional[str] = None
+    calories_per_serving: Optional[int] = None
+    
+    @validator('recipe_name', pre=True, always=True)
+    def set_recipe_name(cls, v, values):
+        if not v and values.get('title'):
+            return values['title']
+        return v or "Unknown Recipe"
 
 class CookedRecipeCreate(BaseModel):
     recipe_name: str

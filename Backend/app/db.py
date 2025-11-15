@@ -1,8 +1,8 @@
-# app/db.py
 import motor.motor_asyncio 
-from .config import settings  # Assuming you have a config.py for settings
-from datetime import datetime, timedelta, timezone
+from app.config import settings
+from datetime import datetime, timedelta
 from bson import ObjectId
+from typing import List, Dict, Any, Optional
 
 # --- Database Setup ---
 client = motor.motor_asyncio.AsyncIOMotorClient(settings.DATABASE_URL)
@@ -16,13 +16,17 @@ def serialize_doc(doc):
     """Converts a MongoDB doc to a JSON-serializable dict."""
     if not doc:
         return None
+    
+    doc = doc.copy()
     if '_id' in doc:
         doc['id'] = str(doc['_id'])
         del doc['_id']
     
-    # Convert datetimes to ISO strings
+    # Convert ObjectId and datetime to strings
     for key, value in doc.items():
-        if isinstance(value, datetime):
+        if isinstance(value, ObjectId):
+            doc[key] = str(value)
+        elif isinstance(value, datetime):
             doc[key] = value.isoformat()
     return doc
 
@@ -30,7 +34,7 @@ def serialize_docs(docs):
     return [serialize_doc(doc) for doc in docs]
 
 # --- User Collection ---
-async def get_user(username: str) -> dict | None:
+async def get_user(username: str) -> Optional[Dict]:
     user = await user_collection.find_one({"username": username})
     return serialize_doc(user)
 
@@ -48,16 +52,16 @@ async def get_user_health_metrics(username: str):
     })
 
 async def update_user_health_metrics(username: str, metrics: dict):
-    # Only update fields that are present in the metrics dict
     update_data = {key: value for key, value in metrics.items() if value is not None}
     if update_data:
-        return await user_collection.update_one(
+        result = await user_collection.update_one(
             {"username": username},
             {"$set": update_data}
         )
+        return result
     return None
 
-# --- Favorites (in User Collection) ---
+# --- Favorites ---
 async def add_to_favorite(username: str, recipe_name: str):
     return await user_collection.update_one(
         {"username": username},
@@ -75,33 +79,36 @@ async def get_favorites(username: str):
     return user.get("favorites", []) if user else []
 
 # --- History Collection ---
-# app/db.py
-
-async def get_chat_history(username: str) -> list:
+async def get_chat_history(username: str) -> List[Dict]:
     history_doc = await history_collection.find_one({"username": username})
     
     if not history_doc or "history" not in history_doc:
         return []
 
-    # --- THIS IS THE CRITICAL FIX ---
     transformed_history = []
     for chat_item in history_doc.get("history", []):
         transformed_messages = []
         for message in chat_item.get("messages", []):
-            # Rename 'sender' to 'role' and 'text' to 'content'
             transformed_messages.append({
-                "role": message.get("sender",""),
-                "content": message.get("text","")
+                "role": message.get("sender", message.get("role", "")),
+                "content": message.get("text", message.get("content", ""))
             })
         
-        chat_item["messages"] = transformed_messages
-        transformed_history.append(chat_item)
+        transformed_chat = {
+            "title": chat_item.get("title"),
+            "messages": transformed_messages,
+            "created_at": chat_item.get("created_at")
+        }
+        transformed_history.append(transformed_chat)
         
-    # We serialize the entire list of chat histories
     return serialize_docs(transformed_history)
 
-async def create_chat_history(username: str, title: str) -> dict:
-    history_item = {"title": title, "messages": [], "created_at": datetime.utcnow()}
+async def create_chat_history(username: str, title: str) -> Dict:
+    history_item = {
+        "title": title, 
+        "messages": [], 
+        "created_at": datetime.utcnow()
+    }
     
     result = await history_collection.update_one(
         {"username": username, "history.title": {"$ne": title}},
@@ -112,52 +119,45 @@ async def create_chat_history(username: str, title: str) -> dict:
     if result.modified_count == 0 and result.upserted_id is None:
         raise ValueError(f"Chat with title '{title}' already exists")
     
-    return history_item
+    return serialize_doc(history_item)
 
-# app/db.py
-
-async def get_chat_by_title(username: str, title: str) -> dict | None:
+async def get_chat_by_title(username: str, title: str) -> Optional[Dict]:
     user_history = await history_collection.find_one(
         {"username": username, "history.title": title},
-        {"history.$": 1} # Project only the matching chat
+        {"history.$": 1}
     )
     
     if not user_history or "history" not in user_history:
         return None
 
-    # --- THIS IS THE FIX ---
-    # Get the raw chat item from the projected array
     chat_item = user_history["history"][0]
     
     transformed_messages = []
     for message in chat_item.get("messages", []):
-        # Rename 'sender' to 'role' and 'text' to 'content'
         transformed_messages.append({
-            "role": message.get("sender",""),
-            "content": message.get("text","")
+            "role": message.get("sender", message.get("role", "")),
+            "content": message.get("text", message.get("content", ""))
         })
     
-    # Overwrite the old messages list with the new, transformed one
     chat_item["messages"] = transformed_messages
-    # --- END OF FIX ---
-    
-    # Return the fully transformed and serialized chat item
     return serialize_doc(chat_item)
 
-async def add_message_to_chat(username: str, title: str, message: dict):
-    return await history_collection.update_one(
+async def add_message_to_chat(username: str, title: str, message: Dict):
+    result = await history_collection.update_one(
         {"username": username, "history.title": title},
         {"$push": {"history.$.messages": message}}
     )
+    return result.modified_count > 0
 
-async def delete_chat_history(username: str, titles: list[str]):
-    return await history_collection.update_one(
+async def delete_chat_history(username: str, titles: List[str]):
+    result = await history_collection.update_one(
         {"username": username},
         {"$pull": {"history": {"title": {"$in": titles}}}}
     )
+    return result
 
-# --- Dashboard Collection (Detailed Tracking) ---
-async def add_cooked_recipe_dashboard(username: str, recipe_data: dict):
+# --- Dashboard Collection ---
+async def add_cooked_recipe_dashboard(username: str, recipe_data: Dict) -> Dict:
     cooked_item = {
         "username": username,
         "recipe_name": recipe_data["recipe_name"],
@@ -169,11 +169,9 @@ async def add_cooked_recipe_dashboard(username: str, recipe_data: dict):
     }
     result = await dashboard_collection.insert_one(cooked_item)
     cooked_item['id'] = str(result.inserted_id)
-    del cooked_item['_id']
-    return cooked_item
+    return serialize_doc(cooked_item)
 
-async def get_today_cooked_recipes(username: str):
-    # FIX: Use utcnow() to avoid timezone issues
+async def get_today_cooked_recipes(username: str) -> List[Dict]:
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     
     cooked_recipes = await dashboard_collection.find({
@@ -183,22 +181,20 @@ async def get_today_cooked_recipes(username: str):
     
     return serialize_docs(cooked_recipes)
 
-async def get_recent_cooked_recipes(username: str, limit: int = 10):
+async def get_recent_cooked_recipes(username: str, limit: int = 10) -> List[Dict]:
     cooked_recipes = await dashboard_collection.find(
         {"username": username}
     ).sort("cooked_at", -1).limit(limit).to_list(length=limit)
     return serialize_docs(cooked_recipes)
 
 async def delete_cooked_recipe_by_id(username: str, recipe_id: ObjectId):
-    """FIX: Robust delete using unique _id and username."""
     return await dashboard_collection.delete_one({
         "_id": recipe_id,
         "username": username
     })
 
-async def get_user_dashboard_stats(username: str):
+async def get_user_dashboard_stats(username: str) -> Dict:
     today_recipes = await get_today_cooked_recipes(username)
-    # FIX: Safe sum in case calories is None
     today_calories = sum(recipe.get("calories", 0) for recipe in today_recipes)
     total_recipes = await dashboard_collection.count_documents({"username": username})
     streak = await calculate_cooking_streak(username)
@@ -211,7 +207,7 @@ async def get_user_dashboard_stats(username: str):
         "streak": streak
     }
 
-async def calculate_cooking_streak(username: str):
+async def calculate_cooking_streak(username: str) -> int:
     all_recipes = await dashboard_collection.find(
         {"username": username}, {"cooked_at": 1}
     ).sort("cooked_at", -1).to_list(length=None)
@@ -222,14 +218,17 @@ async def calculate_cooking_streak(username: str):
     dates_cooked = set()
     for recipe in all_recipes:
         try:
-            cooked_date = datetime.fromisoformat(recipe["cooked_at"]).date()
+            cooked_at = recipe.get("cooked_at")
+            if isinstance(cooked_at, str):
+                cooked_date = datetime.fromisoformat(cooked_at.replace('Z', '+00:00')).date()
+            else:
+                cooked_date = cooked_at.date()
             dates_cooked.add(cooked_date)
-        except (ValueError, KeyError):
+        except (ValueError, KeyError, AttributeError):
             continue
     
     sorted_dates = sorted(dates_cooked, reverse=True)
     streak = 0
-    # FIX: Use utcnow() for consistent date checking
     current_date = datetime.utcnow().date()
     
     for i, cooked_date in enumerate(sorted_dates):
@@ -240,8 +239,7 @@ async def calculate_cooking_streak(username: str):
             break
     return streak
 
-async def get_weekly_calories(username: str):
-    # FIX: Use utcnow() for consistent date checking
+async def get_weekly_calories(username: str) -> List[Dict]:
     today = datetime.utcnow().date()
     week_data = []
     
@@ -265,9 +263,9 @@ async def get_weekly_calories(username: str):
             "calories": day_calories,
             "recipes_count": len(day_recipes)
         })
-    return week_data[::-1] # Return in chronological order
+    return week_data[::-1]
 
-async def get_cooking_insights(username: str):
+async def get_cooking_insights(username: str) -> Dict:
     pipeline = [
         {"$match": {"username": username}},
         {"$group": {

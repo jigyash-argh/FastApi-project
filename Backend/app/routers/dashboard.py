@@ -1,8 +1,8 @@
-# app/routers/dashboard.py
 from fastapi import APIRouter, Depends, HTTPException, Query
-from .. import auth, db
-from ..models import CookedRecipeCreate, CookedRecipeResponse
+from app import auth, db
+from app.models import CookedRecipeCreate, CookedRecipeResponse
 from bson import ObjectId
+from typing import List
 
 router = APIRouter()
 
@@ -15,14 +15,14 @@ async def add_cooked_recipe(recipe_data: CookedRecipeCreate, current_user: dict 
 async def get_today_cooked_recipes(current_user: dict = Depends(auth.get_current_user)):
     stats = await db.get_user_dashboard_stats(current_user["username"])
     return {
-        "recipes": stats["today_recipes_list"],
-        "total_calories": stats["today_calories"],
-        "total_recipes": stats["today_recipes_count"],
-        "streak": stats["streak"]
+        "recipes": stats.get("today_recipes_list", []),
+        "total_calories": stats.get("today_calories", 0),
+        "total_recipes": stats.get("today_recipes_count", 0),
+        "streak": stats.get("streak", 0)
     }
 
 @router.get("/cooked-recipes/recent")
-async def get_recent_cooked_recipes(limit: int = 10, current_user: dict = Depends(auth.get_current_user)):
+async def get_recent_cooked_recipes(limit: int = Query(10, ge=1, le=50), current_user: dict = Depends(auth.get_current_user)):
     cooked_recipes = await db.get_recent_cooked_recipes(current_user["username"], limit)
     return {"cooked_recipes": cooked_recipes}
 
