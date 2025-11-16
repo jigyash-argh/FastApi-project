@@ -51,13 +51,13 @@ const transformRecipeFromBackend = (backendRecipe) => {
   return {
     title: backendRecipe.recipe_name || 'Generated Recipe',
     description: 'A delicious recipe generated just for you',
-    prepTime: '15 mins',
-    cookTime: '30 mins',
-    servings: '4',
-    calories_per_serving: 'N/A',
+    prepTime: backendRecipe.prepTime || '15 mins',
+    cookTime: backendRecipe.cookTime || '30 mins',
+    servings: backendRecipe.servings || '4',
+    calories_per_serving: backendRecipe.calories_per_serving || 'N/A',
     ingredients: backendRecipe.ingredients || [],
     instructions: backendRecipe.instructions || [],
-    youtube_link: backendRecipe.video_url,
+    youtube_link: backendRecipe.video_url || backendRecipe.youtube_link,
     image_url: backendRecipe.image_url
   };
 };
@@ -378,9 +378,11 @@ const CreateRecipePage = () => {
               Authorization: `Bearer ${token}`,
             },
           });
+          console.log('Favorites response:', response.data);
           setFavoriteRecipes(response.data.favorites || []);
         } catch (error) {
           console.error("Failed to fetch favorites:", error);
+          console.error("Error details:", error.response?.data);
         }
       }
     };
@@ -398,68 +400,93 @@ const CreateRecipePage = () => {
     }
   }, [messages, isLoading]);
 
-  // FIXED: Move parseMessageFromHistory inside useEffect to avoid stale closure
+  // Fetch messages
   useEffect(() => {
-    const parseMessageFromHistory = (message) => {
-      if (message.sender === 'ai') {
-        try {
-          // Check if the text is a JSON string that needs parsing
-          if (typeof message.text === 'string' && message.text.trim().startsWith('{')) {
-            const parsedData = JSON.parse(message.text);
-            if (parsedData && typeof parsedData === 'object') {
-              const recipeName = parsedData.recipe_name || parsedData.title || '';
-              const isLiked = favoriteRecipes.includes(recipeName);
-              
-              return {
-                ...message,
-                isRecipe: true,
-                recipe: parsedData,
-                youtube_link: parsedData.video_url || parsedData.youtube_link,
-                image_url: parsedData.image_url,
-                isLiked: isLiked,
-                isCooked: message.isCooked || false
-              };
-            }
-          }
-          // If it's not a JSON string or parsing fails, return as regular message
-          return {
-            ...message,
-            isRecipe: false
-          };
-        } catch (error) {
-          console.error("Failed to parse AI message:", error);
-          // Return as regular message if parsing fails
-          return {
-            ...message,
-            isRecipe: false
-          };
-        }
-      }
-      return message;
-    };
-
     const fetchMessages = async () => {
       if (chatId) {
         const token = localStorage.getItem('userToken');
         if (token) {
           try {
+            console.log('Fetching messages for chat:', chatId);
             const response = await axios.get(`http://127.0.0.1:8000/api/v1/history/${chatId}`, {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
             });
             
+            console.log('Messages response:', response.data);
+            
             // Map API {role, content} to local state {sender, text}
             const apiMessages = response.data.messages?.map(msg => ({
               sender: msg.role,
-              text: msg.content
+              text: msg.content,
+              isCooked: msg.is_cooked || false
             })) || [];
             
-            const parsedMessages = apiMessages.map(parseMessageFromHistory);
-            setMessages(parsedMessages);
+            // Parse messages to identify recipes and set initial states
+            const parsedMessages = apiMessages.map(msg => {
+              if (msg.sender === 'ai') {
+                try {
+                  if (typeof msg.text === 'string' && msg.text.trim().startsWith('{')) {
+                    const parsedData = JSON.parse(msg.text);
+                    if (parsedData && typeof parsedData === 'object') {
+                      const recipeName = parsedData.recipe_name || parsedData.title || '';
+                      const isLiked = favoriteRecipes.includes(recipeName);
+                      
+                      return {
+                        ...msg,
+                        isRecipe: true,
+                        recipe: parsedData,
+                        youtube_link: parsedData.video_url || parsedData.youtube_link,
+                        image_url: parsedData.image_url,
+                        isLiked: isLiked,
+                        isCooked: msg.isCooked || false
+                      };
+                    }
+                  }
+                } catch (error) {
+                  console.error("Failed to parse AI message:", error);
+                }
+              }
+              return {
+                ...msg,
+                isRecipe: false
+              };
+            });
+            
+            // Check cooked recipes from backend so cooked status persists across refreshes
+            if (token) {
+              try {
+                const cookedResp = await axios.get('http://127.0.0.1:8000/api/v1/cooked-recipes/recent', {
+                  headers: { Authorization: `Bearer ${token}` },
+                  params: { limit: 50 }
+                });
+
+                // cookedResp may return { cooked_recipes: [...] } or similar
+                const cookedList = cookedResp.data.cooked_recipes || cookedResp.data.recipes || [];
+                const cookedNames = new Set(cookedList.map(r => (r.recipe_name || r.title || '').toString()));
+
+                const updatedParsed = parsedMessages.map(m => {
+                  if (m.isRecipe && m.recipe) {
+                    const name = (m.recipe.recipe_name || m.recipe.title || '').toString();
+                    return { ...m, isCooked: !!(m.isCooked || cookedNames.has(name)) };
+                  }
+                  return m;
+                });
+
+                setMessages(updatedParsed);
+              } catch (err) {
+                console.error('Failed to fetch cooked recipes for cooked-state check:', err);
+                setMessages(parsedMessages);
+              }
+            } else {
+              setMessages(parsedMessages);
+            }
             setCurrentChatTitle(response.data.title || chatId);
+
           } catch (error) {
             console.error("Failed to fetch messages:", error);
+            console.error("Error details:", error.response?.data);
             // If chat not found, redirect to new chat
             if (error.response?.status === 404) {
               navigate('/create-recipe');
@@ -472,7 +499,8 @@ const CreateRecipePage = () => {
           {
             sender: 'ai',
             text: "Welcome! 🍳 What ingredients do you have in your fridge today? List them out and I'll whip up a delicious recipe for you!",
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            isRecipe: false
           },
         ]);
         setCurrentChatTitle('New Chat');
@@ -480,16 +508,21 @@ const CreateRecipePage = () => {
     };
 
     fetchMessages();
-  }, [chatId, favoriteRecipes, navigate]); // Add favoriteRecipes as dependency
+  }, [chatId, navigate, favoriteRecipes]);
 
+  // FIXED: Like Handler with better error handling
   const handleLike = async (messageIndex) => {
     const token = localStorage.getItem('userToken');
     const message = messages[messageIndex];
     
-    if (!message.isRecipe) return;
+    if (!message.isRecipe) {
+      console.log('Not a recipe message, skipping like');
+      return;
+    }
 
     try {
       const recipeName = message.recipe.recipe_name || message.recipe.title || `Recipe-${messageIndex}`;
+      console.log('Toggling like for recipe:', recipeName);
       
       const response = await axios.post(
         `http://127.0.0.1:8000/api/v1/favorites/${encodeURIComponent(recipeName)}`,
@@ -500,6 +533,8 @@ const CreateRecipePage = () => {
           },
         }
       );
+
+      console.log('Like response:', response.data);
 
       const updatedMessages = [...messages];
       updatedMessages[messageIndex].isLiked = response.data.favorited;
@@ -515,58 +550,149 @@ const CreateRecipePage = () => {
 
     } catch (error) {
       console.error("Failed to update favorite status:", error);
+      console.error("Error details:", error.response?.data);
+      alert('Failed to update favorite status. Please try again.');
     }
   };
 
+  // FIXED: Cooked Recipe Handler with better error handling
   const handleCooked = async (messageIndex) => {
     const token = localStorage.getItem('userToken');
     const message = messages[messageIndex];
     
-    if (!message.isRecipe) return;
+    if (!message.isRecipe) {
+      console.log('Not a recipe message, skipping cooked');
+      return;
+    }
 
     try {
       const recipeName = message.recipe.recipe_name || message.recipe.title || `Recipe-${messageIndex}`;
-      
-      const recipeData = {
-        recipe_name: recipeName,
-        calories: 0,
-        servings: 4,
-        cooked_at: new Date().toISOString(),
-        recipe_data: message.recipe
-      };
+      const isCurrentlyCooked = message.isCooked || false;
+      const newCookedStatus = !isCurrentlyCooked;
 
-      console.log("Sending cooked recipe data:", recipeData);
+      console.log('Toggling cooked status for recipe:', recipeName, 'New status:', newCookedStatus);
 
-      const response = await axios.post(
-        'http://127.0.0.1:8000/api/v1/cooked-recipe',
-        recipeData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+      if (newCookedStatus) {
+        // Mark as cooked - add to cooked recipes
+        const calories = message.recipe.calories_per_serving || 
+                        message.recipe.calories || 
+                        (message.recipe.ingredients ? message.recipe.ingredients.length * 50 : 400);
+        
+        const recipeData = {
+          recipe_name: recipeName,
+          calories: parseInt(calories),
+          servings: 4,
+          cooked_at: new Date().toISOString(),
+          recipe_data: {
+            title: recipeName,
+            ingredients: message.recipe.ingredients || [],
+            instructions: message.recipe.instructions || [],
+            prepTime: message.recipe.prepTime,
+            cookTime: message.recipe.cookTime,
+            image_url: message.recipe.image_url,
+            video_url: message.recipe.video_url || message.recipe.youtube_link
+          }
+        };
+
+        console.log("Sending cooked recipe data:", recipeData);
+
+        const cookedResponse = await axios.post(
+          'http://127.0.0.1:8000/api/v1/cooked-recipe',
+          recipeData,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log('Cooked response:', cookedResponse.data);
+
+        if (cookedResponse.data.id || cookedResponse.data.recipe_name) {
+          console.log('Recipe added to cooked recipes:', recipeName);
         }
-      );
+        // store cooked id on message for future removal
+        if (cookedResponse.data.id) {
+          updatedMessages[messageIndex] = {
+            ...updatedMessages[messageIndex],
+            cookedId: cookedResponse.data.id
+          };
+        }
+      }
 
-      if (response.data.success) {
-        const updatedMessages = [...messages];
-        updatedMessages[messageIndex].isCooked = true;
-        updatedMessages[messageIndex].cookedData = response.data.cooked_data;
-        setMessages(updatedMessages);
+      // Update local state immediately for better UX
+      const updatedMessages = [...messages];
+      updatedMessages[messageIndex].isCooked = newCookedStatus;
+      setMessages(updatedMessages);
 
-        console.log('Recipe marked as cooked:', recipeName);
+      // Persist cooked status on the message in history
+      if (token && currentChatTitle) {
+        try {
+          await axios.put(
+            `http://127.0.0.1:8000/api/v1/history/${encodeURIComponent(currentChatTitle)}/cooked-status`,
+            {
+              title: currentChatTitle,
+              recipe_name: recipeName,
+              isCooked: newCookedStatus
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        } catch (err) {
+          console.error('Failed to persist message cooked status:', err);
+        }
+      }
+
+      console.log(`Recipe ${newCookedStatus ? 'marked as' : 'unmarked as'} cooked:`, recipeName);
+      
+      if (newCookedStatus) {
         alert('Recipe marked as cooked! 🎉 Check your dashboard to see your progress.');
+      } else {
+        // If unmarking, attempt to remove cooked recipe record from backend
+        try {
+          // Prefer deleting by stored cookedId if available
+          const cookedId = messages[messageIndex]?.cookedId || updatedMessages[messageIndex]?.cookedId;
+          if (cookedId) {
+            await axios.delete(`http://127.0.0.1:8000/api/v1/cooked-recipes/${encodeURIComponent(cookedId)}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          } else {
+            // fallback: find recent cooked recipes and delete first matching by name
+            const recent = await axios.get('http://127.0.0.1:8000/api/v1/cooked-recipes/recent', {
+              headers: { Authorization: `Bearer ${token}` },
+              params: { limit: 50 }
+            });
+            const cookedList = recent.data.cooked_recipes || recent.data.recipes || [];
+            const match = cookedList.find(r => (r.recipe_name || r.title || '') === recipeName);
+            if (match && match.id) {
+              await axios.delete(`http://127.0.0.1:8000/api/v1/cooked-recipes/${encodeURIComponent(match.id)}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+            }
+          }
+
+          alert('Recipe unmarked as cooked.');
+        } catch (err) {
+          console.error('Failed to remove cooked recipe on unmark:', err);
+          alert('Recipe unmarked locally, but failed to update server.');
+        }
       }
 
     } catch (error) {
-      console.error("Failed to mark recipe as cooked:", error);
+      console.error("Failed to update cooked status:", error);
+      console.error("Error details:", error.response?.data);
+      
+      // Revert local state on error
+      const updatedMessages = [...messages];
+      updatedMessages[messageIndex].isCooked = message.isCooked;
+      setMessages(updatedMessages);
       
       if (error.response?.status === 422) {
         alert('Invalid recipe data. Please try again.');
       } else if (error.response?.status === 500) {
         alert('Server error. Please try again later.');
       } else {
-        alert('Failed to mark recipe as cooked. Please try again.');
+        alert('Failed to update cooked status. Please try again.');
       }
     }
   };
@@ -578,7 +704,8 @@ const CreateRecipePage = () => {
     const userMessage = { 
       sender: 'user', 
       text: inputValue,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isRecipe: false
     };
     
     setMessages((prev) => [...prev, userMessage]);
@@ -602,6 +729,7 @@ const CreateRecipePage = () => {
           }
         );
         currentTitle = response.data.title;
+        setCurrentChatTitle(currentTitle);
         // Update URL to include the new chat ID
         navigate(`/create-recipe/${currentTitle}`);
       } catch (error) {
@@ -635,6 +763,8 @@ const CreateRecipePage = () => {
         }
       );
 
+      console.log('Chat response:', response.data);
+
       const recipeData = response.data;
       const recipeName = recipeData.recipe_name || recipeData.title || '';
       const isLiked = favoriteRecipes.includes(recipeName);
@@ -656,7 +786,10 @@ const CreateRecipePage = () => {
       if (token && currentTitle) {
         try {
           await axios.post(`http://127.0.0.1:8000/api/v1/history/${currentTitle}/messages`, 
-            { role: 'ai', content: JSON.stringify(recipeData) }, 
+            { 
+              role: 'ai', 
+              content: JSON.stringify(recipeData)
+            }, 
             {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -672,10 +805,12 @@ const CreateRecipePage = () => {
 
     } catch (error) {
       console.error("Failed to get AI response:", error);
+      console.error("Error details:", error.response?.data);
       const errorMessage = { 
         sender: 'ai', 
         text: "Sorry, I couldn't generate a recipe right now. Please try again later.",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        isRecipe: false
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -731,8 +866,8 @@ const CreateRecipePage = () => {
         >
           <AnimatePresence mode="popLayout">
             {messages.map((msg, index) => {
-              // Skip invalid messages
-              if (!msg || !msg.sender || !msg.text) {
+              // Skip invalid messages. Allow recipe messages which have `recipe`/`isRecipe` instead of `text`.
+              if (!msg || !msg.sender || (!msg.text && !msg.isRecipe && !msg.recipe)) {
                 return null;
               }
               
@@ -892,7 +1027,7 @@ const CreateRecipePage = () => {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
           >
-            Try: "chicken, rice, vegetables" or "quick breakfast ideas" 🍳
+            Try: &quot;chicken, rice, vegetables&quot; or &quot;quick breakfast ideas&quot; 🍳
           </motion.p>
         </motion.footer>
       </div>
