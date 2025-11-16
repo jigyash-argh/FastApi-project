@@ -86,3 +86,13 @@ class HealthMetricsUpdate(BaseModel):
     height: Optional[float] = None
     dietary_preferences: Optional[List[str]] = None
     allergies: Optional[List[str]] = None
+
+class CookedStatusUpdate(BaseModel):
+    title:str
+    recipe_name:str
+    isCooked:bool
+
+class MessageCreateWithCooked(BaseModel):
+    role: str
+    content: str
+    is_cooked: Optional[bool] = False

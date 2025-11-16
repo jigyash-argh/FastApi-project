@@ -294,3 +294,37 @@ async def get_cooking_insights(username: str) -> Dict:
         "average_calories_per_meal": round(avg_result[0]["avg_calories"], 1) if avg_result else 0,
         "total_meals_cooked": avg_result[0]["total_meals"] if avg_result else 0
     }
+
+async def update_message_cooked_status(username: str, title: str, recipe_name: str, is_cooked: bool):
+    """Update the cooked status of a specific message in chat history"""
+    result = await history_collection.update_one(
+        {
+            "username": username,
+            "history.title": title,
+            "history.messages.content": {"$regex": recipe_name}
+        },
+        {
+            "$set": {"history.$[chat].messages.$[msg].is_cooked": is_cooked}
+        },
+        array_filters=[
+            {"chat.title": title},
+            {"msg.content": {"$regex": recipe_name}}
+        ]
+    )
+    return result.modified_count > 0
+
+async def get_message_cooked_status(username: str, title: str, recipe_name: str):
+    """Get the cooked status of a specific message"""
+    chat = await history_collection.find_one(
+        {
+            "username": username,
+            "history.title": title
+        },
+        {"history.$": 1}
+    )
+    
+    if chat and "history" in chat:
+        for message in chat["history"][0].get("messages", []):
+            if recipe_name in message.get("content", ""):
+                return message.get("is_cooked", False)
+    return False
