@@ -51,8 +51,8 @@ const Dashboard = () => {
           
           const stats = statsResponse.data;
           setTodayCalories(stats.today_calories || 0);
-          setCookedRecipes(stats.today_recipes || []);
-          setRecipesTried(stats.total_recipes || 0);
+          setCookedRecipes(stats.today_recipes_list || []);
+          setRecipesTried(stats.total_recipes_all_time || 0);
           setCookingStreak(stats.streak || 0);
         } catch (statsError) {
           console.log("Dashboard stats endpoint not available, using fallback data");
@@ -246,8 +246,8 @@ const Dashboard = () => {
       
       const stats = statsResponse.data;
       setTodayCalories(stats.today_calories || 0);
-      setCookedRecipes(stats.today_recipes || []);
-      setRecipesTried(stats.total_recipes || 0);
+      setCookedRecipes(stats.today_recipes_list || []);
+      setRecipesTried(stats.total_recipes_all_time || 0);
       setCookingStreak(stats.streak || 0);
     } catch (error) {
       console.log("Could not refresh dashboard data");
