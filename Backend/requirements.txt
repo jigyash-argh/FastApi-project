@@ -1,11 +1,1 @@
-fastapi
-uvicorn[standard]
-motor
-passlib[bcrypt]
-python-jose[cryptography]
-pydantic
-pydantic-settings
-langchain
-langchain-google-genai
-pydantic[email]
-python-multipart
+fastapi==0.141.1
