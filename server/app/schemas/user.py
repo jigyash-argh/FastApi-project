@@ -14,4 +14,4 @@ class UserResponse(BaseModel):
 
 class TokenResponse(BaseModel): 
     access_token: str = Field(..., description="JWT access token")
-    token_type:str="Bearer"
+    token_type:str="Bearer" 
