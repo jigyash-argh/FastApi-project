@@ -1,35 +1,63 @@
-export interface RecipeCardData {
-  title: string
-  prepTime: string
-  calories: string
-  matchPercent: number
-  ingredientsUsed: string[]
-  missingIngredients: string[]
-  steps: string[]
-}
-
-export interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: string
-  recipe?: RecipeCardData
-}
-
+// Matches serialize_chat(chat) in FastAPI
 export interface ChatSession {
   id: string
   title: string
-  preview: string
-  category: 'Today' | 'Yesterday' | 'Previous 7 Days'
-  emoji: string
-  pinned?: boolean
+  created_at: string
+  updated_at: string
+}
+
+// Matches serialize_message(message) in FastAPI
+export interface ChatMessage {
+  id: string
+  session_id: string
+  role: 'user' | 'assistant' | string
+  content: string
+  created_at: string
+}
+
+// Matches GET /chats/{chat_id} response
+export interface ChatDetailResponse {
+  chat: ChatSession
   messages: ChatMessage[]
 }
 
+// Request payloads matching app.schemas.chat_schema
+export interface CreateChatPayload {
+  title: string
+}
+
+export interface SendMessagePayload {
+  content: string
+}
+
+export interface RenameChatPayload {
+  title: string
+}
+
+// User Settings matching UserSettingsUpdate schema
+export interface UserSettings {
+  theme?: string
+  notifications?: boolean
+  diet_preference?: string
+  [key: string]: unknown
+}
+
+// Matches serialize_user(user) in FastAPI
 export interface UserProfile {
-  name: string
+  id: string
+  username: string
   email: string
-  badge: string
-  fridgeCount: number
-  savedRecipes: number
+  settings: UserSettings
+}
+
+export interface UserUpdatePayload {
+  username?: string
+  email?: string
+}
+
+export interface UserSettingsUpdatePayload {
+  theme?: string
+  notifications?: boolean
+  diet_preference?: string
+  [key: string]: unknown
 }

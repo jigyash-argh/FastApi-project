@@ -42,6 +42,22 @@ button {
   background: #dcebd2;
 }
 
+.dashboard-cursor {
+  cursor: url("/feast-cursor.svg") 3 3, auto;
+}
+
+.dashboard-cursor :is(a, button, [role="button"]) {
+  cursor: pointer;
+}
+
+.dashboard-cursor :is(input, textarea, [contenteditable="true"]) {
+  cursor: text;
+}
+
+.dashboard-cursor button:disabled {
+  cursor: not-allowed;
+}
+
 .login-hero {
   background:
     radial-gradient(ellipse at 18% 78%, rgba(255, 255, 255, 0.67), transparent 43%),

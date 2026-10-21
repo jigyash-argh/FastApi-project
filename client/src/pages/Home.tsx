@@ -230,6 +230,9 @@ function Home() {
             <a className="transition-colors hover:text-[#2c4131]" href="#how-it-works">
               Zero-Waste Tips
             </a>
+            <Link className="transition-colors hover:text-[#2c4131]" to="/dashboard">
+              Dashboard
+            </Link>
           </nav>
 
           <div className="flex items-center gap-3">

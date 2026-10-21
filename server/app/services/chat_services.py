@@ -9,9 +9,12 @@ def get_user_chats(user_id: str):
 def get_chat_messages(chat_id: str, user_id: str):
     chat = repo.get_chat_by_id(chat_id, user_id)
     if not chat:
-        raise ValueError("Chat not found or access denied.")
+        return None
     messages = repo.get_chat_messages(chat_id, user_id)
-    return messages
+    return {
+        "chat": chat,
+        "messages": messages,
+    }
 def send_message(chat_id: str, user_id: str, content: str):
     content = content.strip()
 

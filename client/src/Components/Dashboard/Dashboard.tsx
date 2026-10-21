@@ -2,519 +2,425 @@ import { useState, useRef, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
+import {
+  getChats,
+  getChatById,
+  createChat,
+  sendMessage,
+  renameChat,
+  deleteChat,
+} from '../../api/chat'
 import type { ChatSession, ChatMessage, UserProfile } from './types'
 
-const INITIAL_SESSIONS: ChatSession[] = [
-  {
-    id: 'chat-avocado-spinach',
-    title: 'Creamy Avocado & Spinach Pasta',
-    preview: 'Using avocado, baby spinach, garlic & lemon',
-    category: 'Today',
-    emoji: '🥑',
-    pinned: true,
-    messages: [
-      {
-        id: 'm-1',
-        role: 'user',
-        content:
-          'I have 1 ripe avocado, two handfuls of baby spinach, roasted garlic, and a fresh lemon in my fridge. What can I make in 15 minutes?',
-        timestamp: '7:15 PM',
-      },
-      {
-        id: 'm-2',
-        role: 'assistant',
-        content:
-          'You have the exact building blocks for a silky, no-cream Green Goddess skillet pasta! Blending the ripe avocado with spinach, lemon juice, and warm pasta water creates a glossy emerald sauce without heavy dairy.',
-        timestamp: '7:15 PM',
-        recipe: {
-          title: '15-Minute Silky Avocado & Spinach Skillet Pasta',
-          prepTime: '15 mins',
-          calories: '420 kcal',
-          matchPercent: 96,
-          ingredientsUsed: ['Avocado', 'Baby Spinach', 'Roasted Garlic', 'Fresh Lemon'],
-          missingIngredients: ['Pasta or Chickpearotini', 'Olive Oil'],
-          steps: [
-            'Boil salted water and cook your pasta until al dente, reserving 1/2 cup of starchy cooking water.',
-            'Add ripe avocado, half the baby spinach, roasted garlic, lemon juice, and olive oil to a blender; pulse until velvety smooth.',
-            'Toss hot pasta with the avocado crema, splash in warm pasta water, and fold in the remaining fresh spinach leaves to wilt.',
-          ],
-        },
-      },
-    ],
-  },
-  {
-    id: 'chat-shakshuka-eggs',
-    title: 'Rustic Feta & Blistered Tomato Eggs',
-    preview: 'One-pan dinner with free-range eggs & feta',
-    category: 'Yesterday',
-    emoji: '🍳',
-    pinned: false,
-    messages: [
-      {
-        id: 'm-3',
-        role: 'user',
-        content: 'My cherry tomatoes are getting soft and I have 3 eggs + crumbled feta left.',
-        timestamp: 'Yesterday',
-      },
-      {
-        id: 'm-4',
-        role: 'assistant',
-        content:
-          'Softening cherry tomatoes are actually ideal for a quick skillet jam! Their natural sugars caramelize in minutes, making a rich base for poached eggs and salty feta.',
-        timestamp: 'Yesterday',
-        recipe: {
-          title: 'Jammy Cherry Tomato & Whipped Feta Skillet Eggs',
-          prepTime: '18 mins',
-          calories: '350 kcal',
-          matchPercent: 100,
-          ingredientsUsed: ['Cherry Tomatoes', 'Free-range Eggs', 'Crumbled Feta', 'Garlic'],
-          missingIngredients: ['Crusty Bread (optional)'],
-          steps: [
-            'Sear cherry tomatoes in olive oil over medium-high heat for 5 minutes until blistered and saucy.',
-            'Press gently with a wooden spoon, season with black pepper and oregano, and make 3 small wells.',
-            'Crack the eggs into the wells, scatter crumbled feta over the top, cover, and simmer 4 minutes until whites are set.',
-          ],
-        },
-      },
-    ],
-  },
-  {
-    id: 'chat-crispy-chickpeas',
-    title: 'Lemon-Herb Smashed Chickpea Bowls',
-    preview: 'Zero-waste lunch prep with garden herbs',
-    category: 'Previous 7 Days',
-    emoji: '🌿',
-    pinned: false,
-    messages: [
-      {
-        id: 'm-5',
-        role: 'user',
-        content: 'Need a high-protein work lunch using cooked chickpeas, herbs, and cucumber.',
-        timestamp: '4 days ago',
-      },
-      {
-        id: 'm-6',
-        role: 'assistant',
-        content:
-          'Here is a crisp, refreshing Mediterranean smashed chickpea bowl that holds up beautifully in the fridge for 3 days without getting soggy.',
-        timestamp: '4 days ago',
-        recipe: {
-          title: 'Crisp Herb & Lemon Smashed Chickpea Jar',
-          prepTime: '10 mins',
-          calories: '380 kcal',
-          matchPercent: 92,
-          ingredientsUsed: ['Cooked Chickpeas', 'Garden Herbs', 'Fresh Lemon', 'Cucumber'],
-          missingIngredients: ['Tahini or Greek Yogurt'],
-          steps: [
-            'Lightly smash half the chickpeas with a fork so they absorb the lemon-herb dressing while keeping texture.',
-            'Fold in diced cucumber, finely chopped dill and parsley, lemon zest, and a spoonful of tahini.',
-            'Season with flaky sea salt and chill until ready to eat.',
-          ],
-        },
-      },
-    ],
-  },
-]
+// Helper to extract user info from the stored JWT payload
+function getUserFromJwt(): UserProfile {
+  try {
+    const token = window.localStorage.getItem('access_token')
+    if (!token) return { name: 'Kitchen Chef', email: '' }
+    const base64Payload = token.split('.')[1]
+    if (!base64Payload) return { name: 'Kitchen Chef', email: '' }
+    const decoded = JSON.parse(window.atob(base64Payload))
+    const email = decoded.email || decoded.sub || ''
+    const name =
+      decoded.name ||
+      (email.includes('@') ? email.split('@')[0] : 'Kitchen Chef')
+    return { name, email }
+  } catch {
+    return { name: 'Kitchen Chef', email: '' }
+  }
+}
 
-const QUICK_FRIDGE_CHIPS = [
-  '🥑 1 Ripe Avocado',
-  '🥚 3 Free-range Eggs',
-  '🥬 Wilting Spinach',
-  '🧀 Crumbled Feta',
-  '🍅 Cherry Tomatoes',
-  '🍋 Half a Lemon',
-]
-
-const STARTER_PROMPTS = [
-  {
-    emoji: '🥗',
-    title: 'Use up wilting greens',
-    desc: 'Turn baby spinach & herbs into a 12-minute warm grain bowl',
-    prompt: 'I have baby spinach, fresh herbs, and lemon that need to be used tonight. Suggest a warm 12-minute bowl.',
-  },
-  {
-    emoji: '🍳',
-    title: 'High-protein skillet',
-    desc: 'One-pan dinner with eggs, feta, and blistered tomatoes',
-    prompt: 'Give me a high-protein one-pan dinner using eggs, feta cheese, and cherry tomatoes.',
-  },
-  {
-    emoji: '✨',
-    title: '3-ingredient magic',
-    desc: 'Minimalist comfort food with zero grocery trip needed',
-    prompt: 'What is the most delicious dinner I can make with just chickpeas, garlic, and lemon?',
-  },
-]
+function formatMessageTime(isoDate: string): string {
+  const date = new Date(isoDate)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
 
 const Dashboard = () => {
   const navigate = useNavigate()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
-  const [sessions, setSessions] = useState<ChatSession[]>(INITIAL_SESSIONS)
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(INITIAL_SESSIONS[0].id)
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [user] = useState<UserProfile>(() => getUserFromJwt())
+
+  const [isLoadingChats, setIsLoadingChats] = useState(true)
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  const [activeDiet, setActiveDiet] = useState('All Everything')
   const [promptInput, setPromptInput] = useState('')
-  const [isTyping, setIsTyping] = useState(false)
-  const [checkedSteps, setCheckedSteps] = useState<Record<string, boolean>>({})
+  const [newChatTitleModalOpen, setNewChatTitleModalOpen] = useState(false)
+  const [customNewTitle, setCustomNewTitle] = useState('')
 
-  const [user] = useState<UserProfile>({
-    name: 'Jigyash Shukla',
-    email: 'jigyash@fridgetofeast.dev',
-    badge: 'Zero-Waste Sous Chef',
-    fridgeCount: 9,
-    savedRecipes: 14,
-  })
+  const activeChat = sessions.find((s) => s.id === activeSessionId) ?? null
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null
+  // 1. Load all user chats on mount (GET /chats/)
+  useEffect(() => {
+    const token = window.localStorage.getItem('access_token')
+    if (!token) {
+      navigate('/login')
+      return
+    }
 
+    async function fetchInitialChats() {
+      setIsLoadingChats(true)
+      setErrorMessage(null)
+      try {
+        const chatList = await getChats()
+        setSessions(chatList)
+        if (chatList.length > 0) {
+          setActiveSessionId(chatList[0].id)
+        }
+      } catch (err: unknown) {
+        setErrorMessage(extractApiError(err, 'Could not load your chats.'))
+      } finally {
+        setIsLoadingChats(false)
+      }
+    }
+
+    fetchInitialChats()
+  }, [navigate])
+
+  // 2. Whenever activeSessionId changes, fetch its messages (GET /chats/{chat_id})
+  useEffect(() => {
+    if (!activeSessionId) {
+      setMessages([])
+      return
+    }
+
+    let isCancelled = false
+
+    async function loadMessagesForChat(chatId: string) {
+      setIsLoadingMessages(true)
+      setErrorMessage(null)
+      try {
+        const detail = await getChatById(chatId)
+        if (!isCancelled) {
+          setMessages(detail.messages)
+          // Keep session metadata fresh
+          setSessions((prev) =>
+            prev.map((s) => (s.id === detail.chat.id ? detail.chat : s))
+          )
+        }
+      } catch (err: unknown) {
+        if (!isCancelled) {
+          setErrorMessage(extractApiError(err, 'Failed to load messages for this chat.'))
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingMessages(false)
+        }
+      }
+    }
+
+    loadMessagesForChat(activeSessionId)
+
+    return () => {
+      isCancelled = true
+    }
+  }, [activeSessionId])
+
+  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [activeSession?.messages.length, isTyping])
+  }, [messages.length, isSending])
+
+  function extractApiError(error: unknown, fallback: string): string {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'response' in error &&
+      typeof error.response === 'object' &&
+      error.response !== null &&
+      'data' in error.response &&
+      typeof error.response.data === 'object' &&
+      error.response.data !== null &&
+      'detail' in error.response.data &&
+      typeof error.response.data.detail === 'string'
+    ) {
+      return error.response.data.detail
+    }
+    return fallback
+  }
 
   function handleLogout() {
     window.localStorage.removeItem('access_token')
     navigate('/login')
   }
 
-  function handleNewChat() {
-    setActiveSessionId(null)
-    setPromptInput('')
-  }
+  // Create an empty chat explicitly via POST /chats/ if user wants to name it first
+  async function handleCreateNamedChat(event: FormEvent) {
+    event.preventDefault()
+    const trimmed = customNewTitle.trim()
+    if (!trimmed) return
 
-  function handleDeleteSession(id: string) {
-    setSessions((prev) => prev.filter((s) => s.id !== id))
-    if (activeSessionId === id) {
-      const remaining = sessions.filter((s) => s.id !== id)
-      setActiveSessionId(remaining[0]?.id ?? null)
+    setErrorMessage(null)
+    try {
+      const created = await createChat({ title: trimmed })
+      setSessions((prev) => [created, ...prev])
+      setActiveSessionId(created.id)
+      setMessages([])
+      setCustomNewTitle('')
+      setNewChatTitleModalOpen(false)
+    } catch (err: unknown) {
+      setErrorMessage(extractApiError(err, 'Could not create chat.'))
     }
   }
 
-  function handleTogglePin(id: string) {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, pinned: !s.pinned } : s))
-    )
-  }
-
-  function handleAddChipToPrompt(chipText: string) {
-    const cleanName = chipText.replace(/^[^\w]+/, '').trim()
-    setPromptInput((prev) =>
-      prev
-        ? `${prev}, ${cleanName.toLowerCase()}`
-        : `I have ${cleanName.toLowerCase()} in my fridge. What can I cook tonight?`
-    )
-  }
-
-  function toggleStepCheck(stepKey: string) {
-    setCheckedSteps((prev) => ({ ...prev, [stepKey]: !prev[stepKey] }))
-  }
-
-  function handleSendMessage(event?: FormEvent<HTMLFormElement>, customText?: string) {
+  // 3. Send a message (POST /chats/{chat_id}/messages)
+  async function handleSendMessage(event?: FormEvent<HTMLFormElement>, presetContent?: string) {
     if (event) event.preventDefault()
-    const text = (customText ?? promptInput).trim()
-    if (!text || isTyping) return
-
-    const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: text,
-      timestamp: 'Just now',
-    }
-
-    let targetSessionId = activeSessionId
-
-    if (!targetSessionId) {
-      const newSession: ChatSession = {
-        id: `chat-${Date.now()}`,
-        title: text.slice(0, 34) + (text.length > 34 ? '...' : ''),
-        preview: `Tailored for ${activeDiet}`,
-        category: 'Today',
-        emoji: '🥗',
-        messages: [userMsg],
-      }
-      setSessions((prev) => [newSession, ...prev])
-      targetSessionId = newSession.id
-      setActiveSessionId(newSession.id)
-    } else {
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === targetSessionId ? { ...s, messages: [...s.messages, userMsg] } : s
-        )
-      )
-    }
+    const content = (presetContent ?? promptInput).trim()
+    if (!content || isSending) return
 
     setPromptInput('')
-    setIsTyping(true)
+    setIsSending(true)
+    setErrorMessage(null)
 
-    // Simulate AI Chef crafting a customized recipe response
-    setTimeout(() => {
-      const aiMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        role: 'assistant',
-        content: `Here is a comforting, zero-waste recipe tailored to your **${activeDiet}** preference using what you have chilled right now:`,
-        timestamp: 'Just now',
-        recipe: {
-          title: 'Warm Pan-Roasted Garlic & Herb Harvest Bowl',
-          prepTime: '14 mins',
-          calories: '390 kcal',
-          matchPercent: 95,
-          ingredientsUsed: ['Baby Spinach', 'Avocado', 'Roasted Garlic', 'Fresh Lemon'],
-          missingIngredients: ['Toasted Seeds (optional)'],
-          steps: [
-            'Warm a glug of olive oil in a wide skillet with smashed garlic until fragrant and golden.',
-            'Toss in your fridge greens and proteins for 2–3 minutes until just tender and glossy with citrus juice.',
-            'Plate into warm bowls, crown with sliced avocado and herbs, and finish with cracked black pepper.',
-          ],
-        },
+    try {
+      let targetChatId = activeSessionId
+
+      // If no chat is currently open, create one first via POST /chats/
+      if (!targetChatId) {
+        const autoTitle = content.length > 36 ? `${content.slice(0, 36)}...` : content
+        const newSession = await createChat({ title: autoTitle })
+        setSessions((prev) => [newSession, ...prev])
+        targetChatId = newSession.id
+        setActiveSessionId(newSession.id)
       }
 
+      // Optimistically append the user's message so the UI feels instant
+      const optimisticMsg: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        session_id: targetChatId,
+        role: 'user',
+        content,
+        created_at: new Date().toISOString(),
+      }
+      setMessages((prev) => [...prev, optimisticMsg])
+
+      // Call POST /chats/{chat_id}/messages
+      await sendMessage(targetChatId, { content })
+
+      // Re-fetch GET /chats/{chat_id} so we get the persisted user message AND any AI reply generated by chat_services
+      const updatedDetail = await getChatById(targetChatId)
+      setMessages(updatedDetail.messages)
       setSessions((prev) =>
-        prev.map((s) =>
-          s.id === targetSessionId ? { ...s, messages: [...s.messages, aiMsg] } : s
-        )
+        prev.map((s) => (s.id === updatedDetail.chat.id ? updatedDetail.chat : s))
       )
-      setIsTyping(false)
-    }, 950)
+    } catch (err: unknown) {
+      setErrorMessage(extractApiError(err, 'Failed to send message.'))
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  // 4. Rename a chat (PATCH /chats/{chat_id})
+  async function handleRenameSession(chatId: string, newTitle: string) {
+    setErrorMessage(null)
+    try {
+      const updated = await renameChat(chatId, { title: newTitle })
+      setSessions((prev) => prev.map((s) => (s.id === chatId ? updated : s)))
+    } catch (err: unknown) {
+      setErrorMessage(extractApiError(err, 'Could not rename chat.'))
+      throw err
+    }
+  }
+
+  // 5. Delete a chat (DELETE /chats/{chat_id})
+  async function handleDeleteSession(chatId: string) {
+    setErrorMessage(null)
+    try {
+      await deleteChat(chatId)
+      const remaining = sessions.filter((s) => s.id !== chatId)
+      setSessions(remaining)
+      if (activeSessionId === chatId) {
+        setActiveSessionId(remaining[0]?.id ?? null)
+      }
+    } catch (err: unknown) {
+      setErrorMessage(extractApiError(err, 'Could not delete chat.'))
+    }
   }
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-[#fbfaf6] text-[#27392d] selection:bg-[#dcebd2] selection:text-[#2c4131]">
-      {/* Separate Greenish Sidebar Component */}
+    <div className="dashboard-cursor flex h-dvh w-full overflow-hidden bg-[#fbfaf6] text-[#27392d] selection:bg-[#dcebd2] selection:text-[#2c4131]">
+      {/* Separate Sidebar Component */}
       <Sidebar
         activeSessionId={activeSessionId}
+        isLoadingChats={isLoadingChats}
         isOpen={isSidebarOpen}
         onCloseMobile={() => setIsSidebarOpen(false)}
         onDeleteSession={handleDeleteSession}
         onLogout={handleLogout}
-        onNewChat={handleNewChat}
+        onNewChat={() => {
+          setActiveSessionId(null)
+          setMessages([])
+          setPromptInput('')
+        }}
+        onRenameSession={handleRenameSession}
         onSelectSession={(id) => {
           setActiveSessionId(id)
           if (window.innerWidth < 1024) setIsSidebarOpen(false)
         }}
-        onTogglePin={handleTogglePin}
         sessions={sessions}
         user={user}
       />
 
-      {/* Right Main Column: Separate Navbar + Interactive Chat Workspace */}
+      {/* Main Content Area */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Separate Navbar Component */}
         <Navbar
-          activeDiet={activeDiet}
-          activeTitle={activeSession ? activeSession.title : 'New Kitchen Session'}
-          fridgePantryCount={user.fridgeCount}
+          activeChat={activeChat}
           isSidebarOpen={isSidebarOpen}
-          onNewChat={handleNewChat}
-          onSelectDiet={setActiveDiet}
+          onDeleteActiveChat={async () => {
+            if (activeChat) await handleDeleteSession(activeChat.id)
+          }}
+          onNewChat={() => setNewChatTitleModalOpen(true)}
+          onRenameActiveChat={async (newTitle) => {
+            if (activeChat) await handleRenameSession(activeChat.id, newTitle)
+          }}
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         />
 
-        {/* Scrollable Conversation or Empty Welcome Canvas */}
+        {/* API Error Notification Banner */}
+        {errorMessage && (
+          <div
+            className="mx-auto mt-3 flex w-full max-w-[820px] items-center justify-between rounded-xl border border-[#f1d5cc] bg-[#fff4ef] px-4 py-2.5 text-xs font-medium text-[#a7523d]"
+            role="alert"
+          >
+            <span>{errorMessage}</span>
+            <button
+              className="font-bold underline"
+              onClick={() => setErrorMessage(null)}
+              type="button"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Messages or Welcome State */}
         <main className="relative flex-1 overflow-y-auto px-4 pt-6 pb-36 sm:px-8">
           <div className="mx-auto max-w-[820px]">
-            {!activeSession ? (
-              /* Empty State / New Session Welcome Screen */
-              <div className="animate-enter py-6 text-center sm:py-12">
-                <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-[#dce7d3] bg-white/80 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.13em] text-[#66805e] shadow-2xs">
+            {isLoadingMessages ? (
+              <div className="space-y-4 py-10">
+                <div className="ml-auto h-12 w-2/3 animate-pulse rounded-2xl bg-[#dcebd2]/70" />
+                <div className="h-24 w-3/4 animate-pulse rounded-2xl bg-[#eef4e9]" />
+                <div className="ml-auto h-12 w-1/2 animate-pulse rounded-2xl bg-[#dcebd2]/70" />
+              </div>
+            ) : !activeSessionId || messages.length === 0 ? (
+              /* Empty State / Start a New Fridge Session */
+              <div className="animate-enter py-8 text-center sm:py-14">
+                <span className="inline-flex items-center gap-2 rounded-full border border-[#dce7d3] bg-white/80 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.13em] text-[#66805e]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#8db36d]" />
-                   Less waste, more taste
-                </div>
+                  {activeChat ? `Chat: ${activeChat.title}` : 'A little more joy in your kitchen'}
+                </span>
 
                 <h2 className="mt-4 font-serif text-3xl font-medium tracking-[-0.04em] text-[#2c4131] sm:text-5xl">
-                  What&apos;s sitting in your{' '}
+                  What&apos;s in your{' '}
                   <span className="text-[#779666]">fridge tonight?</span>
                 </h2>
                 <p className="mx-auto mt-3 max-w-[490px] text-sm leading-6 text-[#788272] sm:text-base">
-                  Tap the ingredients you want to use up or type what you’re craving.
-                  Your personal sous-chef will build a step-by-step recipe in seconds.
+                  List the ingredients you have on hand or click a starter idea below.
+                  Your conversation is saved automatically to your account.
                 </p>
 
-                {/* Quick Clickable Fridge Chips */}
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                  {QUICK_FRIDGE_CHIPS.map((chip) => (
-                    <button
-                      className="rounded-xl border border-[#dce7d3] bg-[#fffefa] px-3.5 py-2 text-xs font-semibold text-[#344a35] shadow-2xs transition-all duration-200 hover:-translate-y-0.5 hover:border-[#597b52] hover:bg-[#f2f8ed] hover:shadow-sm"
-                      key={chip}
-                      onClick={() => handleAddChipToPrompt(chip)}
-                      type="button"
-                    >
-                      {chip} <span className="ml-1 text-[#779666]">+</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Starter Prompt Cards */}
-                <div className="mt-10 grid grid-cols-1 gap-4 text-left sm:grid-cols-3">
-                  {STARTER_PROMPTS.map((card) => (
+                <div className="mt-8 grid grid-cols-1 gap-4 text-left sm:grid-cols-3">
+                  {[
+                    {
+                      emoji: '🥑',
+                      title: 'Avocado, Spinach & Eggs',
+                      prompt:
+                        'I have avocado, baby spinach, and 3 eggs in my fridge. What can I cook in 15 minutes?',
+                    },
+                    {
+                      emoji: '🍅',
+                      title: 'Tomatoes, Feta & Garlic',
+                      prompt:
+                        'I have cherry tomatoes, crumbled feta, and garlic. Suggest a one-pan dinner.',
+                    },
+                    {
+                      emoji: '🍋',
+                      title: 'Chickpeas, Lemon & Herbs',
+                      prompt:
+                        'Give me a high-protein meal using cooked chickpeas, fresh lemon, and herbs.',
+                    },
+                  ].map((item) => (
                     <button
                       className="group flex flex-col justify-between rounded-2xl border border-[#e5e7dd] bg-[#fffefa] p-5 shadow-[0_8px_24px_rgba(74,97,67,0.05)] transition-all duration-200 hover:-translate-y-1 hover:border-[#91aa7e] hover:shadow-[0_16px_32px_rgba(74,97,67,0.12)]"
-                      key={card.title}
-                      onClick={() => handleSendMessage(undefined, card.prompt)}
+                      key={item.title}
+                      onClick={() => handleSendMessage(undefined, item.prompt)}
                       type="button"
                     >
                       <div>
                         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7F3DD] text-lg transition-transform duration-200 group-hover:scale-110">
-                          {card.emoji}
+                          {item.emoji}
                         </span>
                         <h3 className="mt-3.5 font-serif text-lg font-medium text-[#2c4131] group-hover:text-[#4B7C48]">
-                          {card.title}
+                          {item.title}
                         </h3>
                         <p className="mt-1 text-xs leading-5 text-[#788272]">
-                          {card.desc}
+                          {item.prompt}
                         </p>
                       </div>
                       <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#597b52]">
-                        <span>Ask Chef</span>
-                        <svg
-                          aria-hidden="true"
-                          className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-1"
-                          fill="none"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            d="M4 10h12m-5-5 5 5-5 5"
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.8"
-                          />
-                        </svg>
+                        <span>Ask Kitchen AI →</span>
                       </span>
                     </button>
                   ))}
                 </div>
               </div>
             ) : (
-              /* Active Conversation Thread */
-              <div className="space-y-6">
-                {activeSession.messages.map((msg) => (
-                  <div
-                    className={`flex gap-3.5 ${
-                      msg.role === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
-                    key={msg.id}
-                  >
-                    {msg.role === 'assistant' && (
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#cfe0c2] bg-[#E7F3DD] text-base shadow-2xs">
-                        🌿
-                      </div>
-                    )}
-
+              /* Loaded Messages List from GET /chats/{chat_id} */
+              <div className="space-y-5">
+                {messages.map((msg) => {
+                  const isUser = msg.role === 'user'
+                  return (
                     <div
-                      className={`max-w-[90%] sm:max-w-[82%] ${
-                        msg.role === 'user'
-                          ? 'rounded-2xl rounded-tr-xs bg-[#597b52] px-5 py-3.5 text-sm leading-6 text-white shadow-[0_8px_20px_rgba(89,123,82,0.18)]'
-                          : 'space-y-4'
-                      }`}
+                      className={`flex gap-3.5 ${isUser ? 'justify-end' : 'justify-start'}`}
+                      key={msg.id}
                     >
-                      {msg.role === 'user' ? (
-                        <p>{msg.content}</p>
-                      ) : (
-                        <>
-                          <div className="rounded-2xl rounded-tl-xs border border-[#e5e7dd] bg-[#fffefa] px-5 py-4 text-sm leading-6 text-[#334236] shadow-2xs">
-                            <p>{msg.content}</p>
-                          </div>
-
-                          {/* Embedded Interactive Recipe Card */}
-                          {msg.recipe && (
-                            <div className="overflow-hidden rounded-3xl border border-[#cfe0c2] bg-[#fffefa] shadow-[0_14px_34px_rgba(74,97,67,0.09)] transition-all">
-                              {/* Recipe Card Top Banner */}
-                              <div className="border-b border-[#dce7d3] bg-gradient-to-r from-[#E7F3DD] via-[#f2f8ed] to-[#ffe8b0]/35 px-6 py-4">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <span className="rounded-full bg-[#597b52] px-3 py-1 text-[11px] font-bold text-white">
-                                    {msg.recipe.matchPercent}% Fridge Match
-                                  </span>
-                                  <div className="flex items-center gap-3 text-xs font-semibold text-[#4B7C48]">
-                                    <span>⏱ {msg.recipe.prepTime}</span>
-                                    <span>•</span>
-                                    <span>🔥 {msg.recipe.calories}</span>
-                                  </div>
-                                </div>
-                                <h3 className="mt-2.5 font-serif text-2xl font-medium tracking-[-0.03em] text-[#2c4131]">
-                                  {msg.recipe.title}
-                                </h3>
-                              </div>
-
-                              {/* Ingredients & Checkable Steps */}
-                              <div className="space-y-5 p-6">
-                                <div>
-                                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#66805e]">
-                                    From Your Fridge Shelves
-                                  </p>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {msg.recipe.ingredientsUsed.map((ing) => (
-                                      <span
-                                        className="inline-flex items-center gap-1 rounded-lg border border-[#cfe2c2] bg-[#eff7e8] px-2.5 py-1 text-xs font-semibold text-[#3f643b]"
-                                        key={ing}
-                                      >
-                                        ✓ {ing}
-                                      </span>
-                                    ))}
-                                    {msg.recipe.missingIngredients.map((ing) => (
-                                      <span
-                                        className="inline-flex items-center gap-1 rounded-lg border border-[#ecece4] bg-[#fafaf6] px-2.5 py-1 text-xs font-medium text-[#82907d]"
-                                        key={ing}
-                                      >
-                                        + {ing}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <p className="mb-2.5 text-xs font-bold uppercase tracking-wider text-[#66805e]">
-                                    Interactive Cooking Steps (Click to mark done)
-                                  </p>
-                                  <ol className="space-y-2.5">
-                                    {msg.recipe.steps.map((step, idx) => {
-                                      const stepKey = `${msg.id}-step-${idx}`
-                                      const isDone = Boolean(checkedSteps[stepKey])
-                                      return (
-                                        <li key={stepKey}>
-                                          <button
-                                            className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left text-xs leading-5 transition-all duration-150 sm:text-sm ${
-                                              isDone
-                                                ? 'border-[#cfe0c2] bg-[#f2f8ed]/70 text-[#7b8277] line-through'
-                                                : 'border-[#ecece4] bg-[#fbfaf6] text-[#334236] hover:border-[#b9cba9] hover:bg-white'
-                                            }`}
-                                            onClick={() => toggleStepCheck(stepKey)}
-                                            type="button"
-                                          >
-                                            <span
-                                              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-colors ${
-                                                isDone
-                                                  ? 'bg-[#6d9b62] text-white'
-                                                  : 'bg-[#e3eedb] text-[#354a37]'
-                                              }`}
-                                            >
-                                              {isDone ? '✓' : idx + 1}
-                                            </span>
-                                            <span>{step}</span>
-                                          </button>
-                                        </li>
-                                      )
-                                    })}
-                                  </ol>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </>
+                      {!isUser && (
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#cfe0c2] bg-[#E7F3DD] text-base shadow-2xs">
+                          🌿
+                        </div>
                       )}
-                    </div>
-                  </div>
-                ))}
 
-                {/* Animated Botanical Typing Indicator */}
-                {isTyping && (
+                      <div
+                        className={`max-w-[88%] rounded-2xl px-5 py-3.5 text-sm leading-6 sm:max-w-[78%] ${
+                          isUser
+                            ? 'rounded-tr-xs bg-[#597b52] text-white shadow-[0_8px_20px_rgba(89,123,82,0.18)]'
+                            : 'rounded-tl-xs border border-[#e5e7dd] bg-[#fffefa] text-[#334236] shadow-2xs'
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        {msg.created_at && (
+                          <p
+                            className={`mt-1.5 text-[10px] ${
+                              isUser ? 'text-[#dcebd2]' : 'text-[#9aa493]'
+                            }`}
+                          >
+                            {formatMessageTime(msg.created_at)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {isSending && (
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfe0c2] bg-[#E7F3DD] text-base">
                       🌿
                     </div>
-                    <div className="flex items-center gap-2 rounded-2xl border border-[#e5e7dd] bg-[#fffefa] px-4 py-3 text-xs font-semibold text-[#597b52] shadow-2xs">
+                    <div className="flex items-center gap-2 rounded-2xl border border-[#e5e7dd] bg-[#fffefa] px-4 py-3 text-xs font-semibold text-[#597b52]">
                       <span className="h-2 w-2 animate-bounce rounded-full bg-[#597b52]" />
                       <span className="h-2 w-2 animate-bounce rounded-full bg-[#76A96D] [animation-delay:150ms]" />
                       <span className="h-2 w-2 animate-bounce rounded-full bg-[#98BD78] [animation-delay:300ms]" />
-                      <span className="ml-1">Simmering a fresh recipe...</span>
+                      <span className="ml-1">Cooking up a response...</span>
                     </div>
                   </div>
                 )}
@@ -525,8 +431,8 @@ const Dashboard = () => {
           </div>
         </main>
 
-        {/* Bottom Floating Prompt Input Bar */}
-        <div className="pointer-events-none fixed right-0 bottom-0 left-0 z-20 bg-gradient-to-t from-[#fbfaf6] via-[#fbfaf6]/95 to-transparent pt-4 pb-5 lg:left-auto lg:w-[calc(100%-290px)]">
+        {/* Bottom Prompt Bar -> POST /chats/{chat_id}/messages */}
+        <div className="pointer-events-none fixed right-0 bottom-0 left-0 z-20 bg-gradient-to-t from-[#fbfaf6] via-[#fbfaf6]/95 to-transparent pt-4 pb-5 lg:left-auto lg:w-[calc(100%-295px)]">
           <div className="pointer-events-auto mx-auto max-w-[820px] px-4 sm:px-8">
             <form
               className="group flex items-center gap-2 rounded-2xl border border-[#d6e1cd] bg-[#fffefa] p-2 shadow-[0_14px_34px_rgba(44,65,49,0.1)] transition-all duration-200 focus-within:border-[#7f9c72] focus-within:ring-4 focus-within:ring-[#9bb68a]/15"
@@ -537,17 +443,18 @@ const Dashboard = () => {
               </span>
               <input
                 className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-[#2c4131] outline-none placeholder:text-[#9aa493]"
+                disabled={isSending}
                 onChange={(e) => setPromptInput(e.target.value)}
-                placeholder="Tell Chef what’s in your fridge (e.g., spinach, 2 eggs, feta, lemon)..."
+                placeholder="Tell Kitchen AI what ingredients are in your fridge..."
                 type="text"
                 value={promptInput}
               />
               <button
                 className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl bg-[#597b52] px-4 text-xs font-semibold text-white shadow-[0_6px_14px_rgba(75,111,67,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#4c6f47] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!promptInput.trim() || isTyping}
+                disabled={!promptInput.trim() || isSending}
                 type="submit"
               >
-                <span>Cook Idea</span>
+                <span>{isSending ? 'Sending...' : 'Send'}</span>
                 <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 20 20">
                   <path
                     d="M4 10h12m-5-5 5 5-5 5"
@@ -562,6 +469,55 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Create Named Chat Modal -> POST /chats/ */}
+      {newChatTitleModalOpen && (
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#27392d]/40 p-4 backdrop-blur-xs"
+          onClick={() => setNewChatTitleModalOpen(false)}
+          role="dialog"
+        >
+          <div
+            className="w-full max-w-[420px] rounded-3xl border border-[#dce7d3] bg-[#fffefa] p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-serif text-2xl font-medium text-[#2c4131]">
+              Start a Named Kitchen Chat
+            </h3>
+            <p className="mt-1 text-xs text-[#788272]">
+              Give this recipe session a custom title (e.g., &ldquo;Sunday Meal Prep&rdquo;).
+            </p>
+
+            <form className="mt-4 space-y-4" onSubmit={handleCreateNamedChat}>
+              <input
+                autoFocus
+                className="h-12 w-full rounded-xl border border-[#e5e7dd] bg-white px-4 text-sm text-[#334236] outline-none focus:border-[#91aa7e] focus:ring-4 focus:ring-[#9bb68a]/15"
+                onChange={(e) => setCustomNewTitle(e.target.value)}
+                placeholder="e.g., Weeknight High-Protein Dinners"
+                required
+                type="text"
+                value={customNewTitle}
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  className="rounded-xl border border-[#e5e7dd] bg-white px-4 py-2.5 text-xs font-semibold text-[#7b8277] hover:text-[#2c4131]"
+                  onClick={() => setNewChatTitleModalOpen(false)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="rounded-xl bg-[#597b52] px-5 py-2.5 text-xs font-semibold text-white hover:bg-[#4c6f47]"
+                  type="submit"
+                >
+                  Create Chat
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
