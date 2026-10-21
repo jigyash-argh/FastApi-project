@@ -2,7 +2,7 @@ import Login from './Components/Auth/Login'
 import SignUp from './Components/Auth/SignUp'
 import { BrowserRouter,Route,Routes } from 'react-router-dom'
 import Home from './pages/Home'
-import Dashboard from './pages/Dashboard'
+import Dashboard from './Components/Dashboard/Dashboard'
 import ProtectedRoute from './Components/ProtectedRoute'
 function App() {
   return (

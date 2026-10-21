@@ -29,3 +29,7 @@ export async function signup(payload: SignUpPayload): Promise<SignUpResponse> {
   const response = await api.post<SignUpResponse>('/register', payload)
   return response.data
 }
+export async function logout(): Promise<void> {
+  await api.post('/logout')
+  window.localStorage.removeItem('access_token')
+}
