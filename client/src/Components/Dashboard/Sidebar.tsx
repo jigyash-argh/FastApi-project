@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import type { ChatSession, UserProfile } from './types'
 import { getCurrentUser, updateCurrentUser, updateUserSettings, deleteUserAccount } from '../../api/user'
 
+const dietPreferenceOptions = ['All Everything', 'Vegetarian', 'Vegan', 'Non-Vegetarian']
+
 interface SidebarProps {
   sessions: ChatSession[]
   activeSessionId: string | null
@@ -94,7 +96,20 @@ function Sidebar({
         setUser(data)
         setUsernameInput(data.username)
         setEmailInput(data.email)
-        setDietPrefInput((data.settings?.diet_preference as string) || 'All Everything')
+        const savedDietPreference = data.settings?.diet_preference
+        const legacyDietPreferences: Record<string, string> = {
+          none: 'All Everything',
+          non_vegetarian: 'Non-Vegetarian',
+        }
+        const normalizedDietPreference =
+          typeof savedDietPreference === 'string'
+            ? legacyDietPreferences[savedDietPreference] || savedDietPreference
+            : undefined
+        setDietPrefInput(
+          normalizedDietPreference && dietPreferenceOptions.includes(normalizedDietPreference)
+            ? normalizedDietPreference
+            : 'All Everything'
+        )
       } catch (err) {
         console.error('Failed to fetch current user:', err)
       }
@@ -521,13 +536,19 @@ function Sidebar({
                 <label className="block text-xs font-semibold text-[#455449]" htmlFor="modal-diet">
                   Default Kitchen Diet Preference
                 </label>
-                <input
+                <select
                   className="mt-1 h-11 w-full rounded-xl border border-[#e5e7dd] bg-white px-3 text-sm text-[#334236] outline-none focus:border-[#91aa7e]"
                   id="modal-diet"
                   onChange={(e) => setDietPrefInput(e.target.value)}
-                  type="text"
+                  required
                   value={dietPrefInput}
-                />
+                >
+                  {dietPreferenceOptions.map((preference) => (
+                    <option key={preference} value={preference}>
+                      {preference}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex items-center justify-between pt-3">

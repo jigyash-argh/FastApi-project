@@ -14,7 +14,7 @@ def create_chat(user_id: str, title: str):
     result = chat_sessions.insert_one({
         "user_id": user_id,
         "title": title.strip(),
-        "created_at": now,
+        "created_at": now, 
         "updated_at": now,
     })
 
@@ -118,3 +118,4 @@ def delete_chat(chat_id: str, user_id: str):
     })
 
     return True
+

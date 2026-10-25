@@ -30,9 +30,7 @@ class UserUpdate(BaseModel):
 
 
 class UserSettingsUpdate(BaseModel):
-    dietary_preference: Literal[
-        "none", "vegetarian", "vegan", "non_vegetarian"
-    ] | None = None
+    diet_preference: str | None = None
 
     cooking_skill: Literal[
         "beginner", "intermediate", "advanced"

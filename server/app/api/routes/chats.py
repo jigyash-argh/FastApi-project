@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.routes.dependencies import get_current_user
@@ -100,7 +99,7 @@ def send_message(
     user_id = get_user_id(current_user)
 
     try:
-        message = service.send_message(
+        result = service.send_message(
             chat_id,
             user_id,
             payload.content,
@@ -108,13 +107,17 @@ def send_message(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-    if not message:
+    if not result:
         raise HTTPException(
             status_code=404,
             detail="Chat not found",
         )
 
-    return serialize_message(message)
+    return {
+        "chat": serialize_chat(result["chat"]),
+        "user_message": serialize_message(result["user_message"]),
+        "ai_message": serialize_message(result["ai_message"]),
+    }
 
 
 @router.patch("/{chat_id}")
