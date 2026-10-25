@@ -61,3 +61,8 @@ export interface UserSettingsUpdatePayload {
   diet_preference?: string
   [key: string]: unknown
 }
+export interface SendMessageResponse {
+  chat: ChatSession
+  user_message: ChatMessage
+  ai_message: ChatMessage
+}

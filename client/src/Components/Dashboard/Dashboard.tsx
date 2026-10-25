@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import ReactMarkdown, { type Components } from 'react-markdown'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import {
@@ -7,28 +8,12 @@ import {
   getChatById,
   createChat,
   sendMessage,
+  streamMessage,
   renameChat,
   deleteChat,
 } from '../../api/chat'
-import type { ChatSession, ChatMessage, UserProfile } from './types'
-
-// Helper to extract user info from the stored JWT payload
-function getUserFromJwt(): UserProfile {
-  try {
-    const token = window.localStorage.getItem('access_token')
-    if (!token) return { name: 'Kitchen Chef', email: '' }
-    const base64Payload = token.split('.')[1]
-    if (!base64Payload) return { name: 'Kitchen Chef', email: '' }
-    const decoded = JSON.parse(window.atob(base64Payload))
-    const email = decoded.email || decoded.sub || ''
-    const name =
-      decoded.name ||
-      (email.includes('@') ? email.split('@')[0] : 'Kitchen Chef')
-    return { name, email }
-  } catch {
-    return { name: 'Kitchen Chef', email: '' }
-  }
-}
+import type { ChatSession, ChatMessage } from './types'
+import { getFridgeItems } from '../../api/fridge'
 
 function formatMessageTime(isoDate: string): string {
   const date = new Date(isoDate)
@@ -36,14 +21,86 @@ function formatMessageTime(isoDate: string): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+function formatAssistantMarkdown(content: string): string {
+  return content
+    .replace(/\s+(#{1,6}\s+)/g, '\n\n$1')
+    .replace(/\s+(?=-\s+(?:\*\*|[A-Z]))/g, '\n')
+    .replace(/\s+(?=\d+\.\s+\*\*)/g, '\n')
+}
+
+const assistantMarkdownComponents: Components = {
+  h1: ({ children }) => (
+    <h1 className="mb-2 mt-5 font-serif text-xl font-semibold text-[#2c4131] first:mt-0">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }) => (
+    <h2 className="mb-2 mt-5 font-serif text-lg font-semibold text-[#2c4131] first:mt-0">
+      {children}
+    </h2>
+  ),
+  h3: ({ children }) => (
+    <h3 className="mb-1.5 mt-4 text-sm font-semibold text-[#2c4131] first:mt-0">
+      {children}
+    </h3>
+  ),
+  p: ({ children }) => <p className="my-2 leading-6 first:mt-0 last:mb-0">{children}</p>,
+  ul: ({ children }) => (
+    <ul className="my-2 list-disc space-y-1 pl-5 marker:text-[#76A96D]">{children}</ul>
+  ),
+  ol: ({ children }) => (
+    <ol className="my-2 list-decimal space-y-1 pl-5 marker:font-semibold marker:text-[#597b52]">
+      {children}
+    </ol>
+  ),
+  li: ({ children }) => <li className="pl-1">{children}</li>,
+  strong: ({ children }) => (
+    <strong className="font-semibold text-[#2c4131]">{children}</strong>
+  ),
+  blockquote: ({ children }) => (
+    <blockquote className="my-3 border-l-2 border-[#91aa7e] pl-3 text-[#657260]">
+      {children}
+    </blockquote>
+  ),
+  hr: () => <hr className="my-4 border-[#e5e7dd]" />,
+  a: ({ children, href }) => (
+    <a
+      className="font-medium text-[#4B7C48] underline underline-offset-2"
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {children}
+    </a>
+  ),
+  pre: ({ children }) => (
+    <pre className="my-3 overflow-x-auto rounded-xl bg-[#f2f4ed] p-3 text-xs leading-5">
+      {children}
+    </pre>
+  ),
+  code: ({ children }) => (
+    <code className="rounded bg-[#f2f4ed] px-1 py-0.5 font-mono text-[0.9em]">
+      {children}
+    </code>
+  ),
+}
+
 const Dashboard = () => {
+  const location = useLocation()
   const navigate = useNavigate()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const skipNextFetchRef = useRef(false)
+  const fridgePrompt =
+    typeof location.state === 'object' &&
+    location.state !== null &&
+    'fridgePrompt' in location.state &&
+    typeof location.state.fridgePrompt === 'string'
+      ? location.state.fridgePrompt
+      : null
 
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [user] = useState<UserProfile>(() => getUserFromJwt())
 
   const [isLoadingChats, setIsLoadingChats] = useState(true)
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
@@ -51,7 +108,7 @@ const Dashboard = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  const [promptInput, setPromptInput] = useState('')
+  const [promptInput, setPromptInput] = useState(fridgePrompt ?? '')
   const [newChatTitleModalOpen, setNewChatTitleModalOpen] = useState(false)
   const [customNewTitle, setCustomNewTitle] = useState('')
 
@@ -65,29 +122,42 @@ const Dashboard = () => {
       return
     }
 
+    let isMounted = true
+
     async function fetchInitialChats() {
       setIsLoadingChats(true)
       setErrorMessage(null)
       try {
         const chatList = await getChats()
+        if (!isMounted) return
         setSessions(chatList)
         if (chatList.length > 0) {
           setActiveSessionId(chatList[0].id)
         }
       } catch (err: unknown) {
+        if (!isMounted) return
         setErrorMessage(extractApiError(err, 'Could not load your chats.'))
       } finally {
-        setIsLoadingChats(false)
+        if (isMounted) setIsLoadingChats(false)
       }
     }
 
     fetchInitialChats()
+    return () => {
+      isMounted = false
+    }
   }, [navigate])
 
-  // 2. Whenever activeSessionId changes, fetch its messages (GET /chats/{chat_id})
+  // 2. Load messages when switching between existing chats in the sidebar
   useEffect(() => {
     if (!activeSessionId) {
       setMessages([])
+      return
+    }
+
+    // Crucial fix: Do NOT overwrite state with GET /chats/{id} if we just created this chat in handleSendMessage!
+    if (skipNextFetchRef.current) {
+      skipNextFetchRef.current = false
       return
     }
 
@@ -100,7 +170,6 @@ const Dashboard = () => {
         const detail = await getChatById(chatId)
         if (!isCancelled) {
           setMessages(detail.messages)
-          // Keep session metadata fresh
           setSessions((prev) =>
             prev.map((s) => (s.id === detail.chat.id ? detail.chat : s))
           )
@@ -123,12 +192,15 @@ const Dashboard = () => {
     }
   }, [activeSessionId])
 
-  // Scroll to bottom when messages change
+  // Auto-scroll when messages or streaming tokens update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length, isSending])
+  }, [messages, isSending])
 
   function extractApiError(error: unknown, fallback: string): string {
+    if (error instanceof Error && error.message) {
+      return error.message
+    }
     if (
       typeof error === 'object' &&
       error !== null &&
@@ -151,7 +223,6 @@ const Dashboard = () => {
     navigate('/login')
   }
 
-  // Create an empty chat explicitly via POST /chats/ if user wants to name it first
   async function handleCreateNamedChat(event: FormEvent) {
     event.preventDefault()
     const trimmed = customNewTitle.trim()
@@ -161,6 +232,7 @@ const Dashboard = () => {
     try {
       const created = await createChat({ title: trimmed })
       setSessions((prev) => [created, ...prev])
+      skipNextFetchRef.current = true
       setActiveSessionId(created.id)
       setMessages([])
       setCustomNewTitle('')
@@ -170,55 +242,149 @@ const Dashboard = () => {
     }
   }
 
-  // 3. Send a message (POST /chats/{chat_id}/messages)
-  async function handleSendMessage(event?: FormEvent<HTMLFormElement>, presetContent?: string) {
+  // 3. Send & Stream Message
+  async function handleSendMessage(
+    event?: FormEvent<HTMLFormElement>,
+    presetContent?: string
+  ) {
     if (event) event.preventDefault()
     const content = (presetContent ?? promptInput).trim()
     if (!content || isSending) return
+
+    let requestContent = content
+    try {
+      const fridgeItems = getFridgeItems()
+      if (fridgeItems.length > 0) {
+        const ingredientList = fridgeItems
+          .map((item) => `${item.quantity} ${item.name}`)
+          .join(', ')
+        requestContent = `${content}\n\nIngredients currently in my fridge: ${ingredientList}. Prioritize these ingredients when suggesting a dish.`
+      }
+    } catch (err: unknown) {
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Could not load your saved fridge items.'
+      )
+      return
+    }
 
     setPromptInput('')
     setIsSending(true)
     setErrorMessage(null)
 
+    const tempUserId = `temp-user-${Date.now()}`
+    const tempAiId = `temp-ai-${Date.now()}`
+
     try {
       let targetChatId = activeSessionId
 
-      // If no chat is currently open, create one first via POST /chats/
+      // Create chat first if user is on the empty welcome screen
       if (!targetChatId) {
-        const autoTitle = content.length > 36 ? `${content.slice(0, 36)}...` : content
+        const autoTitle =
+          content.length > 36 ? `${content.slice(0, 36)}...` : content
         const newSession = await createChat({ title: autoTitle })
         setSessions((prev) => [newSession, ...prev])
         targetChatId = newSession.id
+
+        // Prevent useEffect from firing a competing GET /chats/{id}
+        skipNextFetchRef.current = true
         setActiveSessionId(newSession.id)
       }
 
-      // Optimistically append the user's message so the UI feels instant
-      const optimisticMsg: ChatMessage = {
-        id: `temp-${Date.now()}`,
+      // Show optimistic user message immediately
+      const optimisticUserMsg: ChatMessage = {
+        id: tempUserId,
         session_id: targetChatId,
         role: 'user',
-        content,
+        content: requestContent,
         created_at: new Date().toISOString(),
       }
-      setMessages((prev) => [...prev, optimisticMsg])
+      setMessages((prev) => [...prev, optimisticUserMsg])
 
-      // Call POST /chats/{chat_id}/messages
-      await sendMessage(targetChatId, { content })
+      let streamFailedMessage: string | null = null
 
-      // Re-fetch GET /chats/{chat_id} so we get the persisted user message AND any AI reply generated by chat_services
-      const updatedDetail = await getChatById(targetChatId)
-      setMessages(updatedDetail.messages)
-      setSessions((prev) =>
-        prev.map((s) => (s.id === updatedDetail.chat.id ? updatedDetail.chat : s))
+      await streamMessage(
+        targetChatId,
+        { content: requestContent },
+        {
+          onUserMessage: (savedUserMsg) => {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === tempUserId ? savedUserMsg : m))
+            )
+          },
+          onToken: (tokenChunk) => {
+            setMessages((prev) => {
+              const hasStreamingBubble = prev.some((m) => m.id === tempAiId)
+              if (!hasStreamingBubble) {
+                return [
+                  ...prev,
+                  {
+                    id: tempAiId,
+                    session_id: targetChatId!,
+                    role: 'assistant',
+                    content: tokenChunk,
+                    created_at: new Date().toISOString(),
+                  },
+                ]
+              }
+              return prev.map((m) =>
+                m.id === tempAiId ? { ...m, content: m.content + tokenChunk } : m
+              )
+            })
+          },
+          onComplete: ({ chat: updatedChat, user_message, ai_message }) => {
+            setMessages((prev) => [
+              ...prev.filter(
+                (m) =>
+                  m.id !== tempUserId &&
+                  m.id !== tempAiId &&
+                  m.id !== user_message.id &&
+                  m.id !== ai_message.id
+              ),
+              user_message,
+              ai_message,
+            ])
+            setSessions((prev) => [
+              updatedChat,
+              ...prev.filter((s) => s.id !== updatedChat.id),
+            ])
+          },
+          onError: (detail) => {
+            streamFailedMessage = detail
+          },
+        }
       )
+
+      if (streamFailedMessage) {
+        setErrorMessage(streamFailedMessage)
+      }
     } catch (err: unknown) {
-      setErrorMessage(extractApiError(err, 'Failed to send message.'))
+      // Fallback: if fetch streaming failed, try standard JSON endpoint
+      try {
+        if (activeSessionId) {
+          const { chat: updatedChat, user_message, ai_message } = await sendMessage(
+            activeSessionId,
+            { content: requestContent }
+          )
+          setMessages((prev) => [
+            ...prev.filter((m) => m.id !== tempUserId && m.id !== tempAiId),
+            user_message,
+            ai_message,
+          ])
+          setSessions((prev) => [
+            updatedChat,
+            ...prev.filter((s) => s.id !== updatedChat.id),
+          ])
+        } else {
+          setErrorMessage(extractApiError(err, 'Failed to send message.'))
+        }
+      } catch (fallbackErr: unknown) {
+        setErrorMessage(extractApiError(fallbackErr, 'Failed to send message.'))
+      }
     } finally {
       setIsSending(false)
     }
   }
 
-  // 4. Rename a chat (PATCH /chats/{chat_id})
   async function handleRenameSession(chatId: string, newTitle: string) {
     setErrorMessage(null)
     try {
@@ -230,7 +396,6 @@ const Dashboard = () => {
     }
   }
 
-  // 5. Delete a chat (DELETE /chats/{chat_id})
   async function handleDeleteSession(chatId: string) {
     setErrorMessage(null)
     try {
@@ -246,8 +411,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="dashboard-cursor flex h-dvh w-full overflow-hidden bg-[#fbfaf6] text-[#27392d] selection:bg-[#dcebd2] selection:text-[#2c4131]">
-      {/* Separate Sidebar Component */}
+    <div className="flex h-dvh w-full overflow-hidden bg-[#fbfaf6] text-[#27392d] selection:bg-[#dcebd2] selection:text-[#2c4131]">
       <Sidebar
         activeSessionId={activeSessionId}
         isLoadingChats={isLoadingChats}
@@ -266,12 +430,9 @@ const Dashboard = () => {
           if (window.innerWidth < 1024) setIsSidebarOpen(false)
         }}
         sessions={sessions}
-        user={user}
       />
 
-      {/* Main Content Area */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Separate Navbar Component */}
         <Navbar
           activeChat={activeChat}
           isSidebarOpen={isSidebarOpen}
@@ -285,7 +446,6 @@ const Dashboard = () => {
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         />
 
-        {/* API Error Notification Banner */}
         {errorMessage && (
           <div
             className="mx-auto mt-3 flex w-full max-w-[820px] items-center justify-between rounded-xl border border-[#f1d5cc] bg-[#fff4ef] px-4 py-2.5 text-xs font-medium text-[#a7523d]"
@@ -302,17 +462,14 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Messages or Welcome State */}
         <main className="relative flex-1 overflow-y-auto px-4 pt-6 pb-36 sm:px-8">
           <div className="mx-auto max-w-[820px]">
             {isLoadingMessages ? (
               <div className="space-y-4 py-10">
                 <div className="ml-auto h-12 w-2/3 animate-pulse rounded-2xl bg-[#dcebd2]/70" />
                 <div className="h-24 w-3/4 animate-pulse rounded-2xl bg-[#eef4e9]" />
-                <div className="ml-auto h-12 w-1/2 animate-pulse rounded-2xl bg-[#dcebd2]/70" />
               </div>
             ) : !activeSessionId || messages.length === 0 ? (
-              /* Empty State / Start a New Fridge Session */
               <div className="animate-enter py-8 text-center sm:py-14">
                 <span className="inline-flex items-center gap-2 rounded-full border border-[#dce7d3] bg-white/80 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.13em] text-[#66805e]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#8db36d]" />
@@ -325,7 +482,6 @@ const Dashboard = () => {
                 </h2>
                 <p className="mx-auto mt-3 max-w-[490px] text-sm leading-6 text-[#788272] sm:text-base">
                   List the ingredients you have on hand or click a starter idea below.
-                  Your conversation is saved automatically to your account.
                 </p>
 
                 <div className="mt-8 grid grid-cols-1 gap-4 text-left sm:grid-cols-3">
@@ -343,10 +499,10 @@ const Dashboard = () => {
                         'I have cherry tomatoes, crumbled feta, and garlic. Suggest a one-pan dinner.',
                     },
                     {
-                      emoji: '🍋',
-                      title: 'Chickpeas, Lemon & Herbs',
+                      emoji: '🍆',
+                      title: 'Eggplant, Garlic & Onion',
                       prompt:
-                        'Give me a high-protein meal using cooked chickpeas, fresh lemon, and herbs.',
+                        'I have eggplant, garlic, and onion. What can I make under 10 minutes?',
                     },
                   ].map((item) => (
                     <button
@@ -374,7 +530,6 @@ const Dashboard = () => {
                 </div>
               </div>
             ) : (
-              /* Loaded Messages List from GET /chats/{chat_id} */
               <div className="space-y-5">
                 {messages.map((msg) => {
                   const isUser = msg.role === 'user'
@@ -396,7 +551,15 @@ const Dashboard = () => {
                             : 'rounded-tl-xs border border-[#e5e7dd] bg-[#fffefa] text-[#334236] shadow-2xs'
                         }`}
                       >
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        {isUser ? (
+                          <p className="whitespace-pre-wrap">{msg.content}</p>
+                        ) : (
+                          <div className="break-words">
+                            <ReactMarkdown components={assistantMarkdownComponents}>
+                              {formatAssistantMarkdown(msg.content)}
+                            </ReactMarkdown>
+                          </div>
+                        )}
                         {msg.created_at && (
                           <p
                             className={`mt-1.5 text-[10px] ${
@@ -411,7 +574,7 @@ const Dashboard = () => {
                   )
                 })}
 
-                {isSending && (
+                {isSending && !messages.some((m) => m.id.startsWith('temp-ai-')) && (
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#cfe0c2] bg-[#E7F3DD] text-base">
                       🌿
@@ -431,7 +594,6 @@ const Dashboard = () => {
           </div>
         </main>
 
-        {/* Bottom Prompt Bar -> POST /chats/{chat_id}/messages */}
         <div className="pointer-events-none fixed right-0 bottom-0 left-0 z-20 bg-gradient-to-t from-[#fbfaf6] via-[#fbfaf6]/95 to-transparent pt-4 pb-5 lg:left-auto lg:w-[calc(100%-295px)]">
           <div className="pointer-events-auto mx-auto max-w-[820px] px-4 sm:px-8">
             <form
@@ -470,7 +632,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Create Named Chat Modal -> POST /chats/ */}
       {newChatTitleModalOpen && (
         <div
           aria-modal="true"
@@ -486,7 +647,7 @@ const Dashboard = () => {
               Start a Named Kitchen Chat
             </h3>
             <p className="mt-1 text-xs text-[#788272]">
-              Give this recipe session a custom title (e.g., &ldquo;Sunday Meal Prep&rdquo;).
+              Give this recipe session a custom title.
             </p>
 
             <form className="mt-4 space-y-4" onSubmit={handleCreateNamedChat}>

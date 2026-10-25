@@ -4,6 +4,9 @@ import type { ChatSession, UserProfile } from './types'
 import { getCurrentUser, updateCurrentUser, updateUserSettings, deleteUserAccount } from '../../api/user'
 
 const dietPreferenceOptions = ['All Everything', 'Vegetarian', 'Vegan', 'Non-Vegetarian']
+const profileMenuItemClass =
+  'flex h-9 w-full items-center gap-2.5 rounded-xl px-3 text-left font-sans text-[12px] leading-4 font-medium text-[#344a35] transition-colors hover:bg-[#f2f8ed]'
+const profileMenuIconClass = 'flex w-5 shrink-0 justify-center'
 
 interface SidebarProps {
   sessions: ChatSession[]
@@ -414,30 +417,31 @@ function Sidebar({
 
                 <div className="mt-1 space-y-0.5">
                   <button
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-[#344a35] hover:bg-[#f2f8ed]"
+                    className={profileMenuItemClass}
                     onClick={() => {
                       setProfileMenuOpen(false)
                       setSettingsModalOpen(true)
                     }}
                     type="button"
                   >
-                    <span>⚙️</span>
-                    <span>Profile & Settings</span>
+                    <span className={profileMenuIconClass} aria-hidden="true">⚙️</span>
+                    <span className="min-w-0 flex-1">Profile &amp; Settings</span>
                   </button>
                   <Link
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-[#344a35] hover:bg-[#f2f8ed]"
-                    to="/"
+                    className={profileMenuItemClass}
+                    onClick={() => setProfileMenuOpen(false)}
+                    to="/fridge"
                   >
-                    <span>🏠</span>
-                    <span>Back to Fridge Home</span>
+                    <span className={profileMenuIconClass} aria-hidden="true">🥬</span>
+                    <span className="min-w-0 flex-1">My fridge</span>
                   </Link>
                   <button
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-[#a7523d] hover:bg-[#fff4ef]"
+                    className="flex h-9 w-full items-center gap-2.5 rounded-xl px-3 text-left text-xs font-semibold text-[#a7523d] transition-colors hover:bg-[#fff4ef]"
                     onClick={onLogout}
                     type="button"
                   >
-                    <span>🚪</span>
-                    <span>Sign out</span>
+                    <span className="flex w-5 shrink-0 justify-center" aria-hidden="true">🚪</span>
+                    <span className="min-w-0 flex-1">Sign out</span>
                   </button>
                 </div>
               </div>
