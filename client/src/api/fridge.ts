@@ -1,75 +1,68 @@
+import api from './axios'
+
 export interface FridgeItem {
   id: string
   name: string
   quantity: string
   category: string
+  created_at?: string
 }
 
-function getFridgeStorageKey(): string {
-  const token = window.localStorage.getItem('access_token')
-  const payload = token?.split('.')[1]
-  if (!payload) {
-    throw new Error('Your session could not be verified. Please sign in again.')
-  }
-
-  const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
-  let decoded: unknown
-  try {
-    decoded = JSON.parse(
-      window.atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='))
-    )
-  } catch (error: unknown) {
-    throw new Error('Your fridge could not be loaded from this browser.', {
-      cause: error,
-    })
-  }
-
-  if (
-    typeof decoded !== 'object' ||
-    decoded === null ||
-    !('sub' in decoded) ||
-    typeof decoded.sub !== 'string' ||
-    !decoded.sub
-  ) {
-    throw new Error('Your session does not contain a valid user ID.')
-  }
-
-  return `fridge-items:${decoded.sub}`
+export interface CreateFridgeItemPayload {
+  name: string
+  quantity: string
+  food_group: string
 }
 
-function isFridgeItem(value: unknown): value is FridgeItem {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'id' in value &&
-    typeof value.id === 'string' &&
-    'name' in value &&
-    typeof value.name === 'string' &&
-    'quantity' in value &&
-    typeof value.quantity === 'string' &&
-    'category' in value &&
-    typeof value.category === 'string'
-  )
+// Backend API helpers
+export async function getFridgeItemsApi(): Promise<FridgeItem[]> {
+  const response = await api.get<Array<{
+    id: string
+    name: string
+    quantity: string
+    food_group: string
+    created_at: string
+  }>>('/inventory/')
+
+  return response.data.map((item) => ({
+    id: item.id,
+    name: item.name,
+    quantity: item.quantity,
+    category: item.food_group,
+    created_at: item.created_at,
+  }))
 }
 
+export async function addFridgeItemApi(payload: CreateFridgeItemPayload): Promise<FridgeItem> {
+  const response = await api.post<{
+    id: string
+    name: string
+    quantity: string
+    food_group: string
+    created_at: string
+  }>('/inventory/', payload)
+
+  return {
+    id: response.data.id,
+    name: response.data.name,
+    quantity: response.data.quantity,
+    category: response.data.food_group,
+    created_at: response.data.created_at,
+  }
+}
+
+export async function deleteFridgeItemApi(itemId: string): Promise<void> {
+  await api.delete(`/inventory/${itemId}`)
+}
+
+// ---------------------------------------------------------
+// Legacy compatibility aliases (to prevent missing export errors)
+// ---------------------------------------------------------
 export function getFridgeItems(): FridgeItem[] {
-  const stored = window.localStorage.getItem(getFridgeStorageKey())
-  if (!stored) return []
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(stored)
-  } catch {
-    throw new Error('Saved fridge data is unreadable. Add an item to replace the saved list.')
-  }
-
-  if (!Array.isArray(parsed) || !parsed.every(isFridgeItem)) {
-    throw new Error('Saved fridge data is invalid. Add an item to replace the saved list.')
-  }
-
-  return parsed
+  // Fallback or empty array if components call this synchronously
+  return []
 }
 
-export function saveFridgeItems(items: FridgeItem[]): void {
-  window.localStorage.setItem(getFridgeStorageKey(), JSON.stringify(items))
+export function saveFridgeItems(_items: FridgeItem[]): void {
+  // No-op fallback since state is now saved via backend POST/DELETE calls
 }

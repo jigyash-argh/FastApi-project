@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
@@ -21,39 +22,120 @@ function formatMessageTime(isoDate: string): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+function formatPipeTables(content: string): string {
+  const lines = content.replace(/\r\n?/g, '\n').split('\n')
+  const formattedLines: string[] = []
+  const getCells = (line: string) =>
+    line
+      .split('|')
+      .map((cell) => cell.trim())
+      .filter(Boolean)
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const lineCells = getCells(lines[index])
+    let separatorCellCount = 0
+    while (
+      separatorCellCount < lineCells.length &&
+      /^:?-{3,}:?$/.test(lineCells[separatorCellCount])
+    ) {
+      separatorCellCount += 1
+    }
+
+    if (separatorCellCount < 2 || index === 0) {
+      formattedLines.push(lines[index])
+      continue
+    }
+
+    const headerCells = getCells(lines[index - 1])
+    const headingMatch = headerCells[0]?.match(/^(#{1,6})\s*(.+)$/)
+    const heading = headingMatch ? `${headingMatch[1]} ${headingMatch[2]}` : null
+    const headers = headingMatch ? headerCells.slice(1) : headerCells
+
+    if (headers.length < 2) {
+      formattedLines.push(lines[index])
+      continue
+    }
+
+    const bodyCells = lineCells
+      .slice(separatorCellCount)
+      .filter((cell) => !/^:?-{3,}:?$/.test(cell))
+    let endIndex = index + 1
+    while (endIndex < lines.length && lines[endIndex].includes('|')) {
+      bodyCells.push(
+        ...getCells(lines[endIndex]).filter(
+          (cell) => !/^:?-{3,}:?$/.test(cell)
+        )
+      )
+      endIndex += 1
+    }
+
+    if (heading) formattedLines.splice(formattedLines.length - 1, 1, heading, '')
+    formattedLines.push(
+      `| ${headers.join(' | ')} |`,
+      `| ${headers.map(() => '---').join(' | ')} |`
+    )
+
+    for (let cellIndex = 0; cellIndex < bodyCells.length; cellIndex += headers.length) {
+      const row = headers.map((_, columnIndex) => bodyCells[cellIndex + columnIndex] ?? '')
+      formattedLines.push(`| ${row.join(' | ')} |`)
+    }
+
+    index = endIndex - 1
+  }
+
+  return formattedLines.join('\n')
+}
+
 function formatAssistantMarkdown(content: string): string {
-  return content
-    .replace(/\s+(#{1,6}\s+)/g, '\n\n$1')
-    .replace(/\s+(?=-\s+(?:\*\*|[A-Z]))/g, '\n')
-    .replace(/\s+(?=\d+\.\s+\*\*)/g, '\n')
+  if (!content) return ''
+
+  const normalized = formatPipeTables(content)
+    .replace(/\r\n?/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/([^\n])[ \t]+(#{1,6}\s+)/g, '$1\n\n$2')
+    .replace(
+      /(^|\n)[ \t]*(Ingredients|Steps|Instructions|Directions|Method|Preparation|Timing|Helpful notes|Nutrition|Serving suggestions|Tips for success)[ \t]*:?[ \t]*(?=\n|$)/gi,
+      '$1### $2'
+    )
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  return normalized
 }
 
 const assistantMarkdownComponents: Components = {
   h1: ({ children }) => (
-    <h1 className="mb-2 mt-5 font-serif text-xl font-semibold text-[#2c4131] first:mt-0">
+    <h1 className="mb-1.5 mt-4 font-serif text-xl font-semibold text-[#2c4131] first:mt-0">
       {children}
     </h1>
   ),
   h2: ({ children }) => (
-    <h2 className="mb-2 mt-5 font-serif text-lg font-semibold text-[#2c4131] first:mt-0">
+    <h2 className="mb-1.5 mt-4 font-serif text-lg font-semibold text-[#2c4131] first:mt-0">
       {children}
     </h2>
   ),
   h3: ({ children }) => (
-    <h3 className="mb-1.5 mt-4 text-sm font-semibold text-[#2c4131] first:mt-0">
+    <h3 className="mb-1 mt-3 text-sm font-semibold text-[#2c4131] first:mt-0">
       {children}
     </h3>
   ),
-  p: ({ children }) => <p className="my-2 leading-6 first:mt-0 last:mb-0">{children}</p>,
+  p: ({ children }) => (
+    <p className="my-1 leading-6 first:mt-0 last:mb-0">{children}</p>
+  ),
   ul: ({ children }) => (
-    <ul className="my-2 list-disc space-y-1 pl-5 marker:text-[#76A96D]">{children}</ul>
+    <ul className="my-2 list-disc space-y-1 pl-5 marker:text-[#76A96D]">
+      {children}
+    </ul>
   ),
   ol: ({ children }) => (
-    <ol className="my-2 list-decimal space-y-1 pl-5 marker:font-semibold marker:text-[#597b52]">
+    <ol className="my-2 list-decimal space-y-1.5 pl-5 marker:font-semibold marker:text-[#597b52]">
       {children}
     </ol>
   ),
-  li: ({ children }) => <li className="pl-1">{children}</li>,
+  li: ({ children }) => (
+    <li className="pl-1 leading-6 [&>p]:my-0.5">{children}</li>
+  ),
   strong: ({ children }) => (
     <strong className="font-semibold text-[#2c4131]">{children}</strong>
   ),
@@ -63,6 +145,26 @@ const assistantMarkdownComponents: Components = {
     </blockquote>
   ),
   hr: () => <hr className="my-4 border-[#e5e7dd]" />,
+  table: ({ children }) => (
+    <div className="my-3 overflow-x-auto rounded-xl border border-[#e5e7dd]">
+      <table className="w-full min-w-[360px] border-collapse text-left text-sm">
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children }) => (
+    <thead className="bg-[#eef4e9] text-[#2c4131]">{children}</thead>
+  ),
+  th: ({ children }) => (
+    <th className="border-b border-[#dfe7d8] px-3 py-2.5 font-semibold">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => (
+    <td className="border-t border-[#edf0e8] px-3 py-2.5 align-top leading-6">
+      {children}
+    </td>
+  ),
   a: ({ children, href }) => (
     <a
       className="font-medium text-[#4B7C48] underline underline-offset-2"
@@ -535,7 +637,7 @@ const Dashboard = () => {
                   const isUser = msg.role === 'user'
                   return (
                     <div
-                      className={`flex gap-3.5 ${isUser ? 'justify-end' : 'justify-start'}`}
+                      className={`flex gap-3.5 ${isUser ? 'justify-end' : 'justify-start assistant-message-enter'}`}
                       key={msg.id}
                     >
                       {!isUser && (
@@ -555,7 +657,10 @@ const Dashboard = () => {
                           <p className="whitespace-pre-wrap">{msg.content}</p>
                         ) : (
                           <div className="break-words">
-                            <ReactMarkdown components={assistantMarkdownComponents}>
+                            <ReactMarkdown
+                              components={assistantMarkdownComponents}
+                              remarkPlugins={[remarkGfm]}
+                            >
                               {formatAssistantMarkdown(msg.content)}
                             </ReactMarkdown>
                           </div>

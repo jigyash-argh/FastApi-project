@@ -1,8 +1,8 @@
-
 import logging
 from typing import Any, Dict, Iterator, List, Optional
 
 from app.repositories import chat_repository as repo
+from app.repositories import inventory_repository as inventory_repo
 from app.services import ai_services, user_services
 
 logger = logging.getLogger(__name__)
@@ -57,10 +57,20 @@ def send_message(chat_id: str, user_id: str, content: str):
 
     user_settings = user_services.get_settings(user_id)
 
+    # CONDITIONAL CHECK: Only fetch & include fridge inventory if user triggers it
+    lower_content = content.lower()
+    should_use_fridge = any(
+        trigger in lower_content
+        for trigger in ["generate from fridge", "cook with my fridge", "from my fridge", "use my fridge"]
+    )
+    
+    fridge_items = inventory_repo.get_user_inventory(user_id) if should_use_fridge else []
+
     ai_reply_content = ai_services.generate_ai_response(
         user_prompt=content,
         chat_history=past_messages,
         user_settings=user_settings,
+        fridge_items=fridge_items,
     )
 
     ai_message = repo.save_message(
@@ -105,6 +115,15 @@ def stream_message(
 
     user_settings = user_services.get_settings(user_id)
 
+    # CONDITIONAL CHECK: Only fetch & include fridge inventory if user triggers it
+    lower_content = content.lower()
+    should_use_fridge = any(
+        trigger in lower_content
+        for trigger in ["generate from fridge", "cook with my fridge", "from my fridge", "use my fridge"]
+    )
+    
+    fridge_items = inventory_repo.get_user_inventory(user_id) if should_use_fridge else []
+
     def generate_events() -> Iterator[Dict[str, Any]]:
         yield {
             "event": "user_message",
@@ -118,6 +137,7 @@ def stream_message(
                 user_prompt=content,
                 chat_history=past_messages,
                 user_settings=user_settings,
+                fridge_items=fridge_items,
             ):
                 if token:
                     response_parts.append(token)

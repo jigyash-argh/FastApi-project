@@ -1,6 +1,11 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getFridgeItems, saveFridgeItems, type FridgeItem } from '../../api/fridge'
+import {
+  getFridgeItemsApi,
+  addFridgeItemApi,
+  deleteFridgeItemApi,
+  type FridgeItem,
+} from '../../api/fridge'
 
 const categories = [
   { name: 'Produce', icon: '🥬' },
@@ -10,41 +15,58 @@ const categories = [
   { name: 'Other', icon: '🧺' },
 ]
 
-function getInitialFridgeState(): { items: FridgeItem[]; error: string | null } {
-  try {
-    return { items: getFridgeItems(), error: null }
-  } catch (error: unknown) {
-    return {
-      items: [],
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Could not load your saved fridge items.',
-    }
-  }
-}
-
-function createItemId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
-}
-
 function Fridge() {
   const navigate = useNavigate()
-  const [initialState] = useState(getInitialFridgeState)
-  const [items, setItems] = useState(initialState.items)
-  const [storageError, setStorageError] = useState(initialState.error)
+  const [items, setItems] = useState<FridgeItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [storageError, setStorageError] = useState<string | null>(null)
+  
   const [name, setName] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [category, setCategory] = useState(categories[0].name)
   const [search, setSearch] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Fetch backend inventory on mount
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadInventory() {
+      setIsLoading(true)
+      setStorageError(null)
+      try {
+        const data = await getFridgeItemsApi()
+        if (isMounted) {
+          setItems(data)
+        }
+      } catch (error: unknown) {
+        if (isMounted) {
+          setStorageError(
+            error instanceof Error
+              ? error.message
+              : 'Could not load your inventory from the kitchen server.'
+          )
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadInventory()
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const filteredItems = items.filter((item) =>
     item.name.toLowerCase().includes(search.trim().toLowerCase())
   )
   const categoryCount = new Set(items.map((item) => item.category)).size
 
-  function handleAddItem(event: FormEvent<HTMLFormElement>) {
+  async function handleAddItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmedName = name.trim()
     const trimmedQuantity = quantity.trim()
@@ -52,57 +74,60 @@ function Fridge() {
       setFormError('Add an ingredient and its quantity first.')
       return
     }
+
     if (
       items.some((item) => item.name.toLowerCase() === trimmedName.toLowerCase())
     ) {
-      setFormError(`${trimmedName} is already in your fridge. Remove it before adding it again.`)
+      setFormError(`${trimmedName} is already in your fridge inventory.`)
       return
     }
 
-    const nextItems = [
-      {
-        id: createItemId(),
-        name: trimmedName,
-        quantity: trimmedQuantity,
-        category,
-      },
-      ...items,
-    ]
+    setIsSubmitting(true)
+    setFormError(null)
+    setStorageError(null)
 
     try {
-      saveFridgeItems(nextItems)
-      setItems(nextItems)
+      const newItem = await addFridgeItemApi({
+        name: trimmedName,
+        quantity: trimmedQuantity,
+        food_group: category,
+      })
+
+      setItems((prev) => [newItem, ...prev])
       setName('')
       setQuantity('1')
-      setFormError(null)
-      setStorageError(null)
     } catch (error: unknown) {
       setStorageError(
         error instanceof Error
           ? error.message
-          : 'Could not save your ingredient in this browser.'
+          : 'Could not save your ingredient to the server.'
       )
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  function handleRemoveItem(itemId: string) {
-    const nextItems = items.filter((item) => item.id !== itemId)
+  async function handleRemoveItem(itemId: string) {
+    const previousItems = [...items]
+    // Optimistic UI update
+    setItems((prev) => prev.filter((item) => item.id !== itemId))
+
     try {
-      saveFridgeItems(nextItems)
-      setItems(nextItems)
-      setStorageError(null)
+      await deleteFridgeItemApi(itemId)
     } catch (error: unknown) {
+      // Rollback on failure
+      setItems(previousItems)
       setStorageError(
         error instanceof Error
           ? error.message
-          : 'Could not update your saved fridge.'
+          : 'Could not remove the ingredient.'
       )
     }
   }
 
   function handleCookWithFridge() {
     navigate('/dashboard', {
-      state: { fridgePrompt: 'What can I cook with the ingredients in my fridge?' },
+      state: { fridgePrompt: 'What can I cook with the ingredients currently in my fridge inventory?' },
     })
   }
 
@@ -143,7 +168,7 @@ function Fridge() {
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-[#e2ebda] bg-[#f4f8ef] px-3 py-1.5 text-[11px] font-semibold tracking-wide text-[#65805c]">
                 <span aria-hidden="true">✨</span>
-                YOUR INGREDIENTS, AT A GLANCE
+                SERVER-SYNCED INVENTORY
               </span>
               <h1 className="mt-5 max-w-xl font-serif text-4xl font-medium leading-[1.08] tracking-[-0.045em] text-[#2c4131] sm:text-5xl">
                 A little love for
@@ -167,28 +192,20 @@ function Fridge() {
             <div className="relative mx-auto flex h-44 w-full max-w-xs items-center justify-center md:h-56">
               <div className="absolute h-40 w-40 rounded-full bg-[#e2efd8] md:h-48 md:w-48" />
               <div className="absolute h-32 w-32 rounded-full border border-white/80 md:h-40 md:w-40" />
-              <div className="animate-float-soft relative flex h-28 w-28 items-center justify-center rounded-[2rem] border border-white/90 bg-white/80 text-6xl shadow-[0_20px_45px_rgba(73,101,63,0.16)] backdrop-blur-sm transition-transform duration-300 hover:rotate-3 hover:scale-105">
+              <div className="animate-float-soft relative flex h-28 w-28 items-center justify-center rounded-[2rem] border border-white/90 bg-white/80 text-6xl shadow-[0_20px_45px_rgba(73,101,63,0.16)] backdrop-blur-sm">
                 🥑
-                <span className="absolute -top-2 -right-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-white bg-[#fffefa] text-2xl shadow-md">
-                  🍋
-                </span>
-                <span className="absolute -bottom-2 -left-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-white bg-[#fffefa] text-xl shadow-md">
-                  🥕
-                </span>
               </div>
-              <span className="absolute top-2 right-[18%] text-xl text-[#9bb68a]">✳</span>
-              <span className="absolute bottom-4 left-[16%] text-sm text-[#d9b967]">✦</span>
             </div>
           </div>
         </section>
 
         <section className="animate-enter mt-5 grid grid-cols-2 gap-3 sm:mt-6 sm:gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-[#e4e9de] bg-white/80 p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md sm:p-5">
+          <div className="rounded-2xl border border-[#e4e9de] bg-white/80 p-4 shadow-sm sm:p-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#899384]">In your fridge</p>
             <p className="mt-2 font-serif text-3xl text-[#36523a]">{items.length}</p>
             <p className="mt-1 text-xs text-[#899384]">ingredients ready to go</p>
           </div>
-          <div className="rounded-2xl border border-[#e4e9de] bg-white/80 p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md sm:p-5">
+          <div className="rounded-2xl border border-[#e4e9de] bg-white/80 p-4 shadow-sm sm:p-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#899384]">Pantry variety</p>
             <p className="mt-2 font-serif text-3xl text-[#36523a]">{categoryCount}</p>
             <p className="mt-1 text-xs text-[#899384]">different food groups</p>
@@ -196,7 +213,7 @@ function Fridge() {
           <div className="col-span-2 flex items-center gap-3 rounded-2xl border border-[#e4e9de] bg-[#f1f6eb]/80 p-4 sm:p-5 md:col-span-1">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-xl shadow-sm">🌱</span>
             <p className="text-xs leading-5 text-[#6d7d66]">
-              A quick inventory makes it easier to find a delicious use for what you already have.
+              Inventory is securely synced with your database account.
             </p>
           </div>
         </section>
@@ -266,11 +283,11 @@ function Fridge() {
               )}
 
               <button
-                className="group inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#597b52] px-4 text-sm font-semibold text-white shadow-[0_7px_16px_rgba(75,111,67,0.16)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#4c6f47] hover:shadow-[0_11px_22px_rgba(75,111,67,0.22)] active:translate-y-0"
+                className="group inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#597b52] px-4 text-sm font-semibold text-white shadow-[0_7px_16px_rgba(75,111,67,0.16)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#4c6f47] disabled:opacity-50"
+                disabled={isSubmitting}
                 type="submit"
               >
-                <span className="transition-transform group-hover:rotate-90">＋</span>
-                Add ingredient
+                <span>{isSubmitting ? 'Adding...' : '＋ Add ingredient'}</span>
               </button>
             </form>
           </div>
@@ -284,9 +301,8 @@ function Fridge() {
               {items.length > 0 && (
                 <label className="relative block w-full sm:max-w-[210px]">
                   <span className="sr-only">Search ingredients</span>
-                  <span aria-hidden="true" className="absolute top-1/2 left-3 -translate-y-1/2 text-sm text-[#92a08a]">⌕</span>
                   <input
-                    className="h-10 w-full rounded-xl border border-[#e1e8dc] bg-white pl-9 pr-3 text-xs outline-none transition-shadow placeholder:text-[#a1a99a] focus:border-[#8eaa80] focus:ring-4 focus:ring-[#8eaa80]/15"
+                    className="h-10 w-full rounded-xl border border-[#e1e8dc] bg-white pl-3 pr-3 text-xs outline-none focus:border-[#8eaa80]"
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Find an ingredient..."
                     type="search"
@@ -296,12 +312,14 @@ function Fridge() {
               )}
             </div>
 
-            {items.length === 0 ? (
+            {isLoading ? (
+              <div className="mt-6 py-12 text-center text-xs text-[#879080]">Loading fridge inventory...</div>
+            ) : items.length === 0 ? (
               <div className="mt-6 flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[#dce5d4] bg-[#f9faf6] px-6 py-10 text-center">
                 <span className="flex h-16 w-16 items-center justify-center rounded-[1.35rem] bg-[#edf4e7] text-3xl">🥬</span>
                 <h3 className="mt-4 font-serif text-lg font-semibold text-[#38503a]">A fresh start</h3>
                 <p className="mt-1 max-w-xs text-xs leading-5 text-[#879080]">
-                  Add your first ingredient and start building a little inspiration for your next meal.
+                  Add your first ingredient to start building your kitchen inventory.
                 </p>
               </div>
             ) : filteredItems.length === 0 ? (
@@ -314,10 +332,10 @@ function Fridge() {
                   const itemCategory = categories.find((entry) => entry.name === item.category)
                   return (
                     <li
-                      className="group flex min-w-0 items-center gap-3 rounded-2xl border border-[#e8ece3] bg-white p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#cad9c1] hover:bg-[#fbfdf8] hover:shadow-[0_8px_22px_rgba(54,77,51,0.08)]"
+                      className="group flex min-w-0 items-center gap-3 rounded-2xl border border-[#e8ece3] bg-white p-3.5 transition-all hover:shadow-sm"
                       key={item.id}
                     >
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f0f5eb] text-xl transition-transform duration-200 group-hover:scale-105">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f0f5eb] text-xl">
                         {itemCategory?.icon ?? '🧺'}
                       </span>
                       <div className="min-w-0 flex-1">
@@ -328,29 +346,19 @@ function Fridge() {
                       </div>
                       <button
                         aria-label={`Remove ${item.name}`}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#9aa493] transition-colors hover:bg-[#fff1ec] hover:text-[#aa5944] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#597b52]"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#9aa493] transition-colors hover:bg-[#fff1ec] hover:text-[#aa5944]"
                         onClick={() => handleRemoveItem(item.id)}
                         type="button"
                       >
-                        <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 20 20">
-                          <path d="M4 6h12M8 6V4h4v2m3 0-.7 10H5.7L5 6m3 3v4m4-4v4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
-                        </svg>
+                        ✕
                       </button>
                     </li>
                   )
                 })}
               </ul>
             )}
-
-            <p className="mt-5 text-[11px] leading-5 text-[#929a8d]">
-              Your fridge list is saved in this browser for your account. It will be included as context when you ask Kitchen AI for recipe ideas.
-            </p>
           </div>
         </section>
-
-        <footer className="border-t border-[#e3e9de] py-5 text-center text-[11px] text-[#929a8d]">
-          Keep it fresh. Make it delicious. Waste a little less. <span aria-hidden="true">🌱</span>
-        </footer>
       </div>
     </main>
   )
