@@ -12,7 +12,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'status': 'OK',
+        'message': 'Your API is running',
+        'timestamp': datetime.utcnow().isoformat()
+    })
 app.include_router(auth.router)
 app.include_router(chats.router)
 app.include_router(user.router)
