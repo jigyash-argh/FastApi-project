@@ -28,7 +28,7 @@ def get_me(current_user=Depends(get_current_user)):
         raise HTTPException(
             status_code=404,
             detail="User not found",
-        )
+        ) 
 
     return serialize_user(user)
 
