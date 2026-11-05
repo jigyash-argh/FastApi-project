@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import auth,chats,user,inventory
@@ -12,17 +14,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    return jsonify({
-        'status': 'OK',
-        'message': 'Your API is running',
-        'timestamp': datetime.utcnow().isoformat()
-    })
+
 app.include_router(auth.router)
 app.include_router(chats.router)
 app.include_router(user.router)
 app.include_router(inventory.router)
+@app.get("/api/health")
+def health_check():
+    return {
+        "status": "OK",
+        "message": "Your API is running",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
